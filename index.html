@@ -1,0 +1,1867 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星际射击 - 完整版 🚀</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            min-height: 100vh;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            overflow: hidden;
+        }
+        #game-container { 
+            position: relative; 
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 0 50px rgba(74, 222, 128, 0.3);
+        }
+        
+        /* UI 覆盖层 */
+        #ui-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-size: 14px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            pointer-events: none;
+            z-index: 100;
+        }
+        #ui-overlay > div { 
+            margin: 8px 0; 
+            background: rgba(0,0,0,0.5);
+            padding: 5px 10px;
+            border-radius: 5px;
+        }
+        
+        /* 血条 */
+        .hp-bar {
+            width: 150px;
+            height: 20px;
+            background: #333;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+        .hp-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #e94560, #ff6b6b);
+            transition: width 0.3s;
+        }
+        
+        /* 经验条 */
+        .exp-bar {
+            width: 150px;
+            height: 10px;
+            background: #333;
+            border-radius: 5px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+        .exp-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #60a5fa, #a78bfa);
+            transition: width 0.3s;
+        }
+        
+        /* 武器槽 */
+        #weapon-slots {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            display: flex;
+            gap: 10px;
+            pointer-events: none;
+            z-index: 100;
+        }
+        .weapon-slot {
+            width: 60px;
+            height: 60px;
+            background: rgba(0,0,0,0.7);
+            border: 2px solid #555;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 24px;
+        }
+        .weapon-slot.active { border-color: #4ade80; box-shadow: 0 0 10px #4ade80; }
+        .weapon-slot span { font-size: 10px; margin-top: 2px; }
+        
+        /* 技能槽 */
+        #skill-slots {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            display: flex;
+            gap: 10px;
+            pointer-events: none;
+            z-index: 100;
+        }
+        .skill-slot {
+            width: 50px;
+            height: 50px;
+            background: rgba(0,0,0,0.7);
+            border: 2px solid #555;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 20px;
+            position: relative;
+        }
+        .skill-slot.ready { border-color: #ffd700; }
+        .skill-slot .cooldown {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0,0,0,0.7);
+            color: #fff;
+            font-size: 10px;
+            text-align: center;
+            border-radius: 0 0 8px 8px;
+        }
+        .skill-slot span { font-size: 8px; }
+        
+        /* 连击显示 */
+        #combo-display {
+            position: absolute;
+            top: 50%;
+            right: 20px;
+            transform: translateY(-50%);
+            color: #ffd700;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            pointer-events: none;
+            z-index: 100;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        #combo-display.show { opacity: 1; }
+        
+        /* 小地图 */
+        #minimap {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 150px;
+            height: 150px;
+            background: rgba(0,0,0,0.7);
+            border: 2px solid #333;
+            border-radius: 10px;
+            pointer-events: none;
+            z-index: 100;
+        }
+        #minimap-canvas { width: 100%; height: 100%; border-radius: 8px; }
+        
+        /* 商店 */
+        #shop {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(180deg, rgba(20,20,40,0.98), rgba(10,10,30,0.98));
+            padding: 30px;
+            border-radius: 15px;
+            color: white;
+            display: none;
+            min-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 2px solid #4ade80;
+            box-shadow: 0 0 30px rgba(74, 222, 128, 0.3);
+            z-index: 200;
+        }
+        #shop h2 { text-align: center; margin-bottom: 20px; color: #ffd700; font-size: 28px; }
+        .shop-category { margin: 20px 0; }
+        .shop-category h3 { color: #60a5fa; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        .shop-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            margin: 8px 0;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+        .shop-item:hover { background: rgba(255,255,255,0.1); border-color: #4ade80; }
+        .shop-item.disabled { opacity: 0.4; cursor: not-allowed; }
+        .shop-item h4 { margin: 0 0 5px 0; color: #fff; }
+        .shop-item p { margin: 0; font-size: 12px; color: #aaa; }
+        .shop-item .price { color: #ffd700; font-weight: bold; font-size: 16px; }
+        .shop-item .owned { color: #4ade80; }
+        .shop-item .maxed { color: #a78bfa; }
+        #shop-close {
+            margin-top: 20px;
+            padding: 12px 20px;
+            background: linear-gradient(45deg, #e94560, #ff6b6b);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        #shop-close:hover { transform: scale(1.02); }
+        
+        /* 游戏结束 */
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(180deg, rgba(20,20,40,0.98), rgba(10,10,30,0.98));
+            padding: 40px;
+            border-radius: 15px;
+            color: white;
+            text-align: center;
+            display: none;
+            border: 2px solid #e94560;
+            box-shadow: 0 0 30px rgba(233, 69, 96, 0.3);
+            z-index: 200;
+        }
+        #game-over h2 { color: #e94560; margin-bottom: 20px; font-size: 36px; }
+        #game-over .stats { margin: 20px 0; text-align: left; }
+        #game-over .stats p { margin: 10px 0; font-size: 18px; }
+        #game-over button {
+            padding: 15px 40px;
+            background: linear-gradient(45deg, #4ade80, #22c55e);
+            color: black;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+            margin: 10px;
+        }
+        #game-over button:hover { transform: scale(1.05); }
+        
+        /* 开始画面 */
+        #start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(180deg, rgba(10,10,30,0.95), rgba(5,5,20,0.98));
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            border-radius: 15px;
+            z-index: 300;
+        }
+        #start-screen h1 { 
+            font-size: 56px; 
+            margin-bottom: 10px; 
+            background: linear-gradient(45deg, #4ade80, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: none;
+        }
+        #start-screen .subtitle { color: #888; font-size: 18px; margin-bottom: 30px; }
+        #start-screen .menu-section { margin: 20px 0; }
+        #start-screen .controls { 
+            background: rgba(255,255,255,0.05); 
+            padding: 25px 35px; 
+            border-radius: 12px; 
+            margin: 20px 0;
+            text-align: left;
+            border: 1px solid #333;
+        }
+        #start-screen .controls h3 { color: #4ade80; margin-bottom: 15px; }
+        #start-screen .controls p { margin: 10px 0; font-size: 14px; }
+        #start-screen .controls span { color: #ffd700; font-weight: bold; }
+        
+        .difficulty-buttons { display: flex; gap: 15px; margin: 20px 0; }
+        .difficulty-btn {
+            padding: 15px 30px;
+            border: 2px solid #555;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+        .difficulty-btn:hover { border-color: #4ade80; background: rgba(74, 222, 128, 0.1); }
+        .difficulty-btn.selected { border-color: #4ade80; background: rgba(74, 222, 128, 0.2); box-shadow: 0 0 15px rgba(74, 222, 128, 0.3); }
+        .difficulty-btn.easy { color: #4ade80; }
+        .difficulty-btn.normal { color: #ffd700; }
+        .difficulty-btn.hard { color: #e94560; }
+        .difficulty-btn.hell { color: #a78bfa; }
+        
+        #start-btn {
+            padding: 18px 60px;
+            background: linear-gradient(45deg, #4ade80, #22c55e);
+            color: black;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 22px;
+            font-weight: bold;
+            margin-top: 20px;
+            transition: transform 0.2s;
+        }
+        #start-btn:hover { transform: scale(1.05); }
+        
+        /* 排行榜 */
+        #leaderboard {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(180deg, rgba(20,20,40,0.98), rgba(10,10,30,0.98));
+            padding: 30px;
+            border-radius: 15px;
+            color: white;
+            display: none;
+            min-width: 400px;
+            border: 2px solid #ffd700;
+            z-index: 200;
+        }
+        #leaderboard h2 { text-align: center; color: #ffd700; margin-bottom: 20px; }
+        #leaderboard table { width: 100%; border-collapse: collapse; }
+        #leaderboard th, #leaderboard td { padding: 10px; text-align: left; border-bottom: 1px solid #333; }
+        #leaderboard th { color: #60a5fa; }
+        #leaderboard .rank-1 { color: #ffd700; }
+        #leaderboard .rank-2 { color: #c0c0c0; }
+        #leaderboard .rank-3 { color: #cd7f32; }
+        
+        /* 成就提示 */
+        #achievement-popup {
+            position: absolute;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(90deg, rgba(74, 222, 128, 0.9), rgba(96, 165, 250, 0.9));
+            padding: 15px 30px;
+            border-radius: 10px;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            display: none;
+            z-index: 250;
+            animation: slideDown 0.5s ease;
+        }
+        @keyframes slideDown {
+            from { top: 50px; opacity: 0; }
+            to { top: 100px; opacity: 1; }
+        }
+        
+        /* Boss 血条 */
+        #boss-hp-container {
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60%;
+            display: none;
+            z-index: 100;
+        }
+        #boss-hp-container h3 { color: #e94560; text-align: center; margin-bottom: 5px; }
+        #boss-hp-bar {
+            width: 100%;
+            height: 25px;
+            background: #333;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px solid #e94560;
+        }
+        #boss-hp-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #e94560, #ff6b6b);
+            transition: width 0.2s;
+        }
+        
+        /* 暂停提示 */
+        #pause-hint {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 48px;
+            font-weight: bold;
+            display: none;
+            z-index: 150;
+            text-shadow: 2px 2px 10px rgba(0,0,0,0.8);
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <!-- UI 覆盖层 -->
+        <div id="ui-overlay">
+            <div>❤️ 生命值
+                <div class="hp-bar"><div class="hp-bar-fill" id="hp-fill"></div></div>
+                <span id="hp-text">100/100</span>
+            </div>
+            <div>⭐ 等级 <span id="level-display">1</span>
+                <div class="exp-bar"><div class="exp-bar-fill" id="exp-fill"></div></div>
+                <span id="exp-text">0/100</span>
+            </div>
+            <div>💰 金币 <span id="gold-display">0</span></div>
+            <div>🌊 波数 <span id="wave-display">1</span></div>
+            <div>🎯 得分 <span id="score-display">0</span></div>
+            <div>⚔️ 伤害 <span id="dmg-display">10</span></div>
+        </div>
+        
+        <!-- 武器槽 -->
+        <div id="weapon-slots">
+            <div class="weapon-slot active" id="weapon-1">🔫<span>1</span></div>
+            <div class="weapon-slot" id="weapon-2">🔒<span>2</span></div>
+            <div class="weapon-slot" id="weapon-3">🔒<span>3</span></div>
+            <div class="weapon-slot" id="weapon-4">🔒<span>4</span></div>
+            <div class="weapon-slot" id="weapon-5">🔒<span>5</span></div>
+        </div>
+        
+        <!-- 技能槽 -->
+        <div id="skill-slots">
+            <div class="skill-slot ready" id="skill-1">💨<span>Q</span></div>
+            <div class="skill-slot" id="skill-2">🛡️<span>E</span></div>
+            <div class="skill-slot" id="skill-3">💥<span>R</span></div>
+        </div>
+        
+        <!-- 连击显示 -->
+        <div id="combo-display">
+            <div id="combo-count">0</div>
+            <div id="combo-text">COMBO!</div>
+        </div>
+        
+        <!-- 小地图 -->
+        <div id="minimap">
+            <canvas id="minimap-canvas" width="150" height="150"></canvas>
+        </div>
+        
+        <!-- Boss 血条 -->
+        <div id="boss-hp-container">
+            <h3 id="boss-name">👹 Boss</h3>
+            <div id="boss-hp-bar"><div id="boss-hp-fill"></div></div>
+        </div>
+        
+        <!-- 暂停提示 -->
+        <div id="pause-hint">⏸️ 暂停中</div>
+        
+        <!-- 成就提示 -->
+        <div id="achievement-popup"></div>
+        
+        <!-- 商店 -->
+        <div id="shop">
+            <h2>🏪 商店</h2>
+            <div class="shop-category" id="weapons-shop">
+                <h3>🔫 武器</h3>
+            </div>
+            <div class="shop-category" id="upgrades-shop">
+                <h3>⬆️ 升级</h3>
+            </div>
+            <div class="shop-category" id="skills-shop">
+                <h3>✨ 技能</h3>
+            </div>
+            <div class="shop-category" id="items-shop">
+                <h3>💊 消耗品</h3>
+            </div>
+            <button id="shop-close">关闭商店 (P)</button>
+        </div>
+        
+        <!-- 游戏结束 -->
+        <div id="game-over">
+            <h2>💀 游戏结束</h2>
+            <div class="stats">
+                <p>🎯 最终得分：<span id="final-score">0</span></p>
+                <p>🌊 到达波数：<span id="final-wave">0</span></p>
+                <p>👹 击杀敌人：<span id="final-kills">0</span></p>
+                <p>⚔️ 最高连击：<span id="final-combo">0</span></p>
+                <p>💰 总获得金币：<span id="final-gold">0</span></p>
+            </div>
+            <button onclick="restartGame()">🔄 重新开始</button>
+            <button onclick="showLeaderboard()">🏆 排行榜</button>
+        </div>
+        
+        <!-- 排行榜 -->
+        <div id="leaderboard">
+            <h2>🏆 排行榜</h2>
+            <table>
+                <thead><tr><th>排名</th><th>得分</th><th>波数</th><th>日期</th></tr></thead>
+                <tbody id="leaderboard-body"></tbody>
+            </table>
+            <button onclick="hideLeaderboard()" style="margin-top:20px;padding:10px 20px;background:#e94560;color:white;border:none;border-radius:5px;cursor:pointer;width:100%;">关闭</button>
+        </div>
+        
+        <!-- 开始画面 -->
+        <div id="start-screen">
+            <h1>🎮 星际射击</h1>
+            <p class="subtitle">完整版 - 小窝出品 🐌</p>
+            
+            <div class="controls">
+                <h3>操作指南</h3>
+                <p><span>WASD</span> - 移动</p>
+                <p><span>鼠标</span> - 瞄准</p>
+                <p><span>左键</span> - 射击</p>
+                <p><span>123</span> - 切换武器</p>
+                <p><span>QER</span> - 技能</p>
+                <p><span>P</span> - 商店</p>
+                <p><span>ESC</span> - 暂停</p>
+            </div>
+            
+            <div class="menu-section">
+                <p style="margin-bottom:10px;color:#888;">选择难度</p>
+                <div class="difficulty-buttons">
+                    <button class="difficulty-btn easy selected" data-difficulty="easy">🌱 简单</button>
+                    <button class="difficulty-btn normal" data-difficulty="normal">⚔️ 普通</button>
+                    <button class="difficulty-btn hard" data-difficulty="hard">🔥 困难</button>
+                    <button class="difficulty-btn hell" data-difficulty="hell">💀 地狱</button>
+                </div>
+            </div>
+            
+            <button id="start-btn" onclick="startGame()">🚀 开始游戏</button>
+            <button onclick="showLeaderboard()" style="margin-top:15px;padding:10px 30px;background:transparent;border:1px solid #ffd700;color:#ffd700;border-radius:8px;cursor:pointer;">🏆 排行榜</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+    <script>
+        // ==================== 游戏配置 ====================
+        const CONFIG = {
+            width: 1280,
+            height: 720,
+            playerSpeed: 250,
+            bulletSpeed: 700,
+            enemySpeedBase: 60,
+            enemySpawnRateBase: 2000,
+        };
+
+        // 难度配置 - 降低敌人伤害，提高玩家生存能力
+        const DIFFICULTIES = {
+            easy: { enemyHp: 0.6, enemyDamage: 0.4, goldDrop: 1.8, spawnRate: 1.5 },
+            normal: { enemyHp: 0.8, enemyDamage: 0.6, goldDrop: 1.2, spawnRate: 1.2 },
+            hard: { enemyHp: 1.2, enemyDamage: 0.9, goldDrop: 1, spawnRate: 0.8 },
+            hell: { enemyHp: 1.5, enemyDamage: 1.2, goldDrop: 0.8, spawnRate: 0.6 },
+        };
+
+        // ==================== 游戏状态 ====================
+        let gameState = {
+            isPaused: false,
+            isStarted: false,
+            isShopOpen: false,
+            difficulty: 'easy',
+            score: 0,
+            wave: 1,
+            waveTimer: 0,
+            waveDuration: 30000,
+            bossActive: false,
+            totalKills: 0,
+            maxCombo: 0,
+            totalGold: 0,
+        };
+
+        // 玩家状态 - 增加初始生命值
+        let playerState = {
+            hp: 150,
+            maxHp: 150,
+            gold: 0,
+            exp: 0,
+            level: 1,
+            expToLevel: 100,
+            invincible: false, // 无敌状态
+            
+            // 武器系统
+            weapons: [
+                { id: 'pistol', name: '🔫 手枪', damage: 10, fireRate: 300, bulletCount: 1, bulletSpread: 0, piercing: 0, bulletSize: 8, bulletColor: 0xffd700, unlocked: true },
+                { id: 'shotgun', name: '🔫 霰弹枪', damage: 8, fireRate: 600, bulletCount: 5, bulletSpread: 0.3, piercing: 0, bulletSize: 6, bulletColor: 0xff6b6b, unlocked: false },
+                { id: 'rifle', name: '🔫 步枪', damage: 25, fireRate: 150, bulletCount: 1, bulletSpread: 0, piercing: 2, bulletSize: 4, bulletColor: 0x60a5fa, unlocked: false },
+                { id: 'laser', name: '⚡ 激光枪', damage: 5, fireRate: 50, bulletCount: 1, bulletSpread: 0, piercing: 999, bulletSize: 3, bulletColor: 0x00ffff, unlocked: false },
+                { id: 'rocket', name: '🚀 火箭筒', damage: 50, fireRate: 1000, bulletCount: 1, bulletSpread: 0, piercing: 0, bulletSize: 12, bulletColor: 0xff4500, explosive: true, unlocked: false },
+            ],
+            currentWeapon: 0,
+            
+            // 技能系统
+            skills: {
+                dash: { name: '💨 冲刺', cooldown: 3000, ready: true, key: 'Q', unlockCost: 500 },
+                shield: { name: '🛡️ 护盾', cooldown: 10000, ready: true, key: 'E', duration: 3000, active: false, unlockCost: 800 },
+                bomb: { name: '💥 炸弹', cooldown: 20000, ready: true, key: 'R', damage: 100, radius: 200, unlockCost: 1000 },
+            },
+            skillCooldowns: { dash: 0, shield: 0, bomb: 0 },
+            
+            // 被动能力
+            critChance: 0,
+            critDamage: 1.5,
+            lifeSteal: 0,
+            autoHeal: 0,
+            goldBonus: 0,
+            expBonus: 0,
+            
+            // 连击
+            combo: 0,
+            comboTimer: 0,
+            comboTimeout: 2000,
+            
+            // 护盾
+            shieldActive: false,
+            shieldHp: 0,
+        };
+
+        // ==================== 武器定义 ====================
+        const WEAPONS = {
+            pistol: { name: '🔫 手枪', desc: '基础武器', damage: 10, fireRate: 300, bulletCount: 1, bulletSpread: 0, piercing: 0, price: 0 },
+            shotgun: { name: '🔫 霰弹枪', desc: '多发子弹，近距离伤害', damage: 8, fireRate: 600, bulletCount: 5, bulletSpread: 0.3, piercing: 0, price: 300 },
+            rifle: { name: '🔫 步枪', desc: '高伤害，穿透敌人', damage: 25, fireRate: 150, bulletCount: 1, bulletSpread: 0, piercing: 2, price: 500 },
+            laser: { name: '⚡ 激光枪', desc: '连续伤害光束', damage: 5, fireRate: 50, bulletCount: 1, bulletSpread: 0, piercing: 999, price: 800 },
+            rocket: { name: '🚀 火箭筒', desc: '范围伤害', damage: 50, fireRate: 1000, bulletCount: 1, bulletSpread: 0, piercing: 0, explosive: true, price: 1000 },
+        };
+
+        // ==================== 敌人类型 ====================
+        const ENEMY_TYPES = {
+            normal: { name: '普通', color: 0xe94560, size: 25, hp: 20, speed: 1, damage: 10, gold: 5 },
+            fast: { name: '快速', color: 0xffd700, size: 20, hp: 15, speed: 2, damage: 8, gold: 8 },
+            tank: { name: '坦克', color: 0x60a5fa, size: 35, hp: 80, speed: 0.5, damage: 20, gold: 15 },
+            shooter: { name: '射手', color: 0xa78bfa, size: 25, hp: 25, speed: 0.8, damage: 15, gold: 12, canShoot: true },
+            splitter: { name: '分裂者', color: 0x00ff88, size: 30, hp: 30, speed: 1.2, damage: 12, gold: 10, canSplit: true },
+            bomber: { name: '自爆', color: 0xff4500, size: 22, hp: 20, speed: 1.5, damage: 25, gold: 8, explosive: true },
+            healer: { name: '治疗者', color: 0x00ffcc, size: 28, hp: 40, speed: 0.6, damage: 5, gold: 20, canHeal: true },
+            boss: { name: 'Boss', color: 0xff0000, size: 60, hp: 500, speed: 0.3, damage: 30, gold: 100, isBoss: true },
+            boss2: { name: '精英Boss', color: 0x9400d3, size: 70, hp: 800, speed: 0.4, damage: 40, gold: 200, isBoss: true, canSpawn: true },
+        };
+
+        // ==================== 商店物品 ====================
+        const SHOP_ITEMS = {
+            upgrades: [
+                { id: 'maxHp', name: '❤️ 生命上限', desc: '+20 最大生命', price: 100, max: 10, effect: () => { playerState.maxHp += 20; playerState.hp = Math.min(playerState.hp + 20, playerState.maxHp); } },
+                { id: 'damage', name: '⚔️ 武器伤害', desc: '+15% 伤害', price: 150, max: 10, effect: () => { playerState.weapons.forEach(w => w.damage *= 1.15); } },
+                { id: 'fireRate', name: '⚡ 射速提升', desc: '-15% 射击间隔', price: 200, max: 8, effect: () => { playerState.weapons.forEach(w => w.fireRate *= 0.85); } },
+                { id: 'moveSpeed', name: '👟 移动速度', desc: '+10% 移速', price: 120, max: 5, effect: () => { CONFIG.playerSpeed *= 1.1; } },
+                { id: 'critChance', name: '🎯 暴击几率', desc: '+5% 暴击率', price: 250, max: 10, effect: () => { playerState.critChance += 0.05; } },
+                { id: 'critDamage', name: '💥 暴击伤害', desc: '+25% 暴击伤害', price: 300, max: 5, effect: () => { playerState.critDamage += 0.25; } },
+                { id: 'lifeSteal', name: '🩸 生命偷取', desc: '+3% 吸血', price: 400, max: 5, effect: () => { playerState.lifeSteal += 0.03; } },
+                { id: 'autoHeal', name: '💚 自动回复', desc: '+1 HP/秒', price: 350, max: 5, effect: () => { playerState.autoHeal += 1; } },
+                { id: 'goldBonus', name: '💰 金币加成', desc: '+10% 金币', price: 200, max: 5, effect: () => { playerState.goldBonus += 0.1; } },
+                { id: 'expBonus', name: '⭐ 经验加成', desc: '+10% 经验', price: 200, max: 5, effect: () => { playerState.expBonus += 0.1; } },
+            ],
+            items: [
+                { id: 'heal', name: '💚 治疗包', desc: '恢复 50 HP', price: 50, effect: () => { playerState.hp = Math.min(playerState.hp + 50, playerState.maxHp); } },
+                { id: 'fullHeal', name: '💖 完全治疗', desc: '恢复满血', price: 200, effect: () => { playerState.hp = playerState.maxHp; } },
+                { id: 'shieldPotion', name: '🛡️ 护盾药水', desc: '+50 护盾值', price: 150, effect: () => { playerState.shieldHp += 50; playerState.shieldActive = true; } },
+            ],
+        };
+
+        // ==================== 成就系统 ====================
+        const ACHIEVEMENTS = [
+            { id: 'first_kill', name: '🎯 初次击杀', desc: '击败第一个敌人', check: () => gameState.totalKills >= 1 },
+            { id: 'kill_100', name: '💀 百人斩', desc: '击败 100 个敌人', check: () => gameState.totalKills >= 100 },
+            { id: 'kill_500', name: '☠️ 死神', desc: '击败 500 个敌人', check: () => gameState.totalKills >= 500 },
+            { id: 'combo_10', name: '🔥 连击新手', desc: '达成 10 连击', check: () => gameState.maxCombo >= 10 },
+            { id: 'combo_50', name: '🔥 连击大师', desc: '达成 50 连击', check: () => gameState.maxCombo >= 50 },
+            { id: 'wave_5', name: '🌊 初级生存者', desc: '到达第 5 波', check: () => gameState.wave >= 5 },
+            { id: 'wave_10', name: '🌊 生存专家', desc: '到达第 10 波', check: () => gameState.wave >= 10 },
+            { id: 'wave_20', name: '🌊 不死之身', desc: '到达第 20 波', check: () => gameState.wave >= 20 },
+            { id: 'gold_1000', name: '💰 小富翁', desc: '累计获得 1000 金币', check: () => gameState.totalGold >= 1000 },
+            { id: 'gold_10000', name: '💰 大富翁', desc: '累计获得 10000 金币', check: () => gameState.totalGold >= 10000 },
+            { id: 'boss_kill', name: '👹 Boss终结者', desc: '击败第一个 Boss', check: () => false }, // 特殊触发
+        ];
+        let unlockedAchievements = new Set();
+
+        // ==================== Phaser 场景 ====================
+        class MainScene extends Phaser.Scene {
+            constructor() { super('MainScene'); }
+
+            preload() {
+                // 使用图形，不需要加载外部资源
+            }
+
+            create() {
+                // 初始化组
+                this.bullets = this.physics.add.group();
+                this.enemies = this.physics.add.group();
+                this.drops = this.physics.add.group();
+                this.enemyBullets = this.physics.add.group();
+                this.particles = this.add.group();
+                
+                // 创建玩家
+                this.createPlayer();
+                
+                // 输入设置
+                this.setupInput();
+                
+                // 碰撞检测
+                this.setupCollisions();
+                
+                // 计时器
+                this.lastFired = 0;
+                this.enemySpawnTimer = 0;
+                this.healTimer = 0;
+                this.waveTimer = 0;
+                
+                // 更新 UI
+                this.updateUI();
+                
+                // 小地图
+                this.minimapCtx = document.getElementById('minimap-canvas').getContext('2d');
+            }
+
+            createPlayer() {
+                this.player = this.add.rectangle(CONFIG.width/2, CONFIG.height/2, 30, 30, 0x4ade80);
+                this.physics.add.existing(this.player);
+                this.player.body.setCollideWorldBounds(true);
+                
+                // 护盾视觉效果
+                this.shieldVisual = this.add.circle(this.player.x, this.player.y, 40, 0x60a5fa, 0.3);
+                this.shieldVisual.setVisible(false);
+            }
+
+            setupInput() {
+                this.cursors = this.input.keyboard.createCursorKeys();
+                this.keys = this.input.keyboard.addKeys({
+                    w: Phaser.Input.Keyboard.KeyCodes.W,
+                    a: Phaser.Input.Keyboard.KeyCodes.A,
+                    s: Phaser.Input.Keyboard.KeyCodes.S,
+                    d: Phaser.Input.Keyboard.KeyCodes.D,
+                    p: Phaser.Input.Keyboard.KeyCodes.P,
+                    esc: Phaser.Input.Keyboard.KeyCodes.ESC,
+                    one: Phaser.Input.Keyboard.KeyCodes.ONE,
+                    two: Phaser.Input.Keyboard.KeyCodes.TWO,
+                    three: Phaser.Input.Keyboard.KeyCodes.THREE,
+                    q: Phaser.Input.Keyboard.KeyCodes.Q,
+                    e: Phaser.Input.Keyboard.KeyCodes.E,
+                    r: Phaser.Input.Keyboard.KeyCodes.R,
+                });
+
+                this.pointer = this.input.activePointer;
+                this.canShoot = false;
+                
+                this.input.on('pointerdown', () => { this.canShoot = true; });
+                this.input.on('pointerup', () => { this.canShoot = false; });
+
+                // 商店
+                this.keys.p.on('down', () => { this.toggleShop(); });
+                
+                // 暂停
+                this.keys.esc.on('down', () => { this.togglePause(); });
+                
+                // 武器切换
+                this.keys.one.on('down', () => { this.switchWeapon(0); });
+                this.keys.two.on('down', () => { this.switchWeapon(1); });
+                this.keys.three.on('down', () => { this.switchWeapon(2); });
+                
+                // 技能
+                this.keys.q.on('down', () => { this.useSkill('dash'); });
+                this.keys.e.on('down', () => { this.useSkill('shield'); });
+                this.keys.r.on('down', () => { this.useSkill('bomb'); });
+            }
+
+            setupCollisions() {
+                this.physics.add.overlap(this.bullets, this.enemies, this.hitEnemy, null, this);
+                this.physics.add.overlap(this.player, this.enemies, this.hitPlayer, null, this);
+                this.physics.add.overlap(this.player, this.drops, this.collectDrop, null, this);
+                this.physics.add.overlap(this.player, this.enemyBullets, this.hitByBullet, null, this);
+            }
+
+            update(time, delta) {
+                if (gameState.isPaused || gameState.isShopOpen || !gameState.isStarted) return;
+
+                // 玩家移动
+                this.handleMovement();
+                
+                // 鼠标瞄准
+                this.handleAiming();
+                
+                // 射击
+                this.handleShooting(time);
+                
+                // 敌人 AI
+                this.updateEnemies(delta);
+                
+                // 敌人生成
+                this.handleEnemySpawning(delta);
+                
+                // 波数系统
+                this.handleWave(delta);
+                
+                // 自动回复
+                this.handleAutoHeal(delta);
+                
+                // 连击计时
+                this.handleCombo(delta);
+                
+                // 护盾跟随
+                this.shieldVisual.setPosition(this.player.x, this.player.y);
+                this.shieldVisual.setVisible(playerState.shieldActive);
+                
+                // 更新技能冷却
+                this.updateSkillCooldowns(delta);
+                
+                // 更新 UI
+                this.updateUI();
+                
+                // 更新小地图
+                this.updateMinimap();
+                
+                // 检查成就
+                this.checkAchievements();
+            }
+
+            handleMovement() {
+                const speed = CONFIG.playerSpeed;
+                this.player.body.setVelocity(0);
+
+                if (this.keys.w.isDown) this.player.body.setVelocityY(-speed);
+                if (this.keys.s.isDown) this.player.body.setVelocityY(speed);
+                if (this.keys.a.isDown) this.player.body.setVelocityX(-speed);
+                if (this.keys.d.isDown) this.player.body.setVelocityX(speed);
+            }
+
+            handleAiming() {
+                const angle = Phaser.Math.Angle.Between(
+                    this.player.x, this.player.y,
+                    this.pointer.x, this.pointer.y
+                );
+                this.player.setRotation(angle);
+            }
+
+            handleShooting(time) {
+                const weapon = playerState.weapons[playerState.currentWeapon];
+                if (this.canShoot && time > this.lastFired + weapon.fireRate) {
+                    this.fireBullet();
+                    this.lastFired = time;
+                }
+            }
+
+            fireBullet() {
+                const weapon = playerState.weapons[playerState.currentWeapon];
+                const angle = Phaser.Math.Angle.Between(
+                    this.player.x, this.player.y,
+                    this.pointer.x, this.pointer.y
+                );
+
+                for (let i = 0; i < weapon.bulletCount; i++) {
+                    const spread = (i - (weapon.bulletCount - 1) / 2) * weapon.bulletSpread;
+                    const bullet = this.add.rectangle(
+                        this.player.x, this.player.y, 
+                        weapon.bulletSize, weapon.bulletSize + 7, 
+                        weapon.bulletColor
+                    );
+
+                    const fireAngle = angle + spread;
+                    const velocityX = Math.cos(fireAngle) * CONFIG.bulletSpeed;
+                    const velocityY = Math.sin(fireAngle) * CONFIG.bulletSpeed;
+                    
+                    bullet.damage = weapon.damage;
+                    bullet.piercing = weapon.piercing;
+                    bullet.pierceCount = 0;
+                    bullet.explosive = weapon.explosive;
+                    
+                    this.bullets.add(bullet);
+                    bullet.body.setVelocity(velocityX, velocityY);
+                    bullet.body.setCollideWorldBounds(false);
+
+                    this.time.delayedCall(2000, () => {
+                        if (bullet.active) {
+                            bullet.destroy();
+                            this.bullets.remove(bullet, true, true);
+                        }
+                    });
+                }
+            }
+
+            handleEnemySpawning(delta) {
+                if (gameState.bossActive) return;
+                
+                const difficulty = DIFFICULTIES[gameState.difficulty];
+                const spawnRate = (CONFIG.enemySpawnRateBase - gameState.wave * 100) * difficulty.spawnRate;
+                
+                this.enemySpawnTimer += delta;
+                if (this.enemySpawnTimer > Math.max(300, spawnRate)) {
+                    this.spawnEnemy();
+                    this.enemySpawnTimer = 0;
+                }
+            }
+
+            spawnEnemy() {
+                const edge = Phaser.Math.Between(0, 3);
+                let x, y;
+                
+                switch(edge) {
+                    case 0: x = Phaser.Math.Between(0, CONFIG.width); y = -30; break;
+                    case 1: x = Phaser.Math.Between(0, CONFIG.width); y = CONFIG.height + 30; break;
+                    case 2: x = -30; y = Phaser.Math.Between(0, CONFIG.height); break;
+                    case 3: x = CONFIG.width + 30; y = Phaser.Math.Between(0, CONFIG.height); break;
+                }
+
+                // 根据波数选择敌人类型
+                let typeKey = 'normal';
+                const rand = Math.random();
+                const wave = gameState.wave;
+                
+                if (wave >= 2 && rand < 0.2) typeKey = 'fast';
+                if (wave >= 4 && rand < 0.15) typeKey = 'tank';
+                if (wave >= 5 && rand < 0.12) typeKey = 'shooter';
+                if (wave >= 6 && rand < 0.10) typeKey = 'splitter';
+                if (wave >= 8 && rand < 0.08) typeKey = 'bomber';
+                if (wave >= 10 && rand < 0.06) typeKey = 'healer';
+                
+                const type = ENEMY_TYPES[typeKey];
+                const difficulty = DIFFICULTIES[gameState.difficulty];
+                
+                const enemy = this.add.rectangle(x, y, type.size, type.size, type.color);
+                enemy.hp = type.hp * difficulty.enemyHp * (1 + gameState.wave * 0.1);
+                enemy.maxHp = enemy.hp;
+                enemy.damage = type.damage * difficulty.enemyDamage;
+                enemy.gold = Math.floor(type.gold * difficulty.goldDrop);
+                enemy.speed = type.speed;
+                enemy.canShoot = type.canShoot;
+                enemy.canSplit = type.canSplit;
+                enemy.explosive = type.explosive;
+                enemy.canHeal = type.canHeal;
+                enemy.canSpawn = type.canSpawn;
+                enemy.shootTimer = 0;
+                enemy.healTimer = 0;
+                enemy.spawnTimer = 0;
+                enemy.isBoss = type.isBoss || false;
+                this.enemies.add(enemy);
+            }
+
+            spawnBoss() {
+                gameState.bossActive = true;
+                
+                const boss = this.add.rectangle(CONFIG.width/2, -50, 60, 60, 0xff0000);
+                boss.hp = 500 * (1 + gameState.wave * 0.2);
+                boss.maxHp = boss.hp;
+                boss.damage = 30;
+                boss.gold = 100;
+                boss.speed = 0.3;
+                boss.isBoss = true;
+                boss.canShoot = true;
+                boss.shootTimer = 0;
+                this.enemies.add(boss);
+                
+                // 显示 Boss 血条
+                this.currentBoss = boss;
+                document.getElementById('boss-hp-container').style.display = 'block';
+                document.getElementById('boss-name').textContent = `👹 波数 ${gameState.wave} Boss`;
+            }
+
+            updateEnemies(delta) {
+                this.enemies.getChildren().forEach(enemy => {
+                    // 移动
+                    const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, this.player.x, this.player.y);
+                    const speed = CONFIG.enemySpeedBase * enemy.speed * (1 + gameState.wave * 0.05);
+                    enemy.body.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
+                    enemy.setRotation(angle);
+                    
+                    // 射击敌人
+                    if (enemy.canShoot) {
+                        enemy.shootTimer += delta;
+                        if (enemy.shootTimer > 2000) {
+                            this.enemyShoot(enemy);
+                            enemy.shootTimer = 0;
+                        }
+                    }
+                    
+                    // 治疗者
+                    if (enemy.canHeal) {
+                        enemy.healTimer += delta;
+                        if (enemy.healTimer > 3000) {
+                            this.healNearbyEnemies(enemy);
+                            enemy.healTimer = 0;
+                        }
+                    }
+                    
+                    // 召唤者
+                    if (enemy.canSpawn) {
+                        enemy.spawnTimer += delta;
+                        if (enemy.spawnTimer > 5000) {
+                            this.spawnMinions(enemy);
+                            enemy.spawnTimer = 0;
+                        }
+                    }
+                });
+            }
+
+            healNearbyEnemies(healer) {
+                this.enemies.getChildren().forEach(enemy => {
+                    if (enemy !== healer) {
+                        const dist = Phaser.Math.Distance.Between(healer.x, healer.y, enemy.x, enemy.y);
+                        if (dist < 150) {
+                            enemy.hp = Math.min(enemy.hp + 10, enemy.maxHp);
+                            // 治疗视觉效果
+                            const healEffect = this.add.circle(enemy.x, enemy.y, enemy.width/2 + 5, 0x00ffcc, 0.5);
+                            this.tweens.add({
+                                targets: healEffect,
+                                scaleX: 1.5,
+                                scaleY: 1.5,
+                                alpha: 0,
+                                duration: 500,
+                                onComplete: () => healEffect.destroy()
+                            });
+                        }
+                    }
+                });
+            }
+
+            spawnMinions(boss) {
+                for (let i = 0; i < 3; i++) {
+                    const angle = (i / 3) * Math.PI * 2;
+                    const x = boss.x + Math.cos(angle) * 60;
+                    const y = boss.y + Math.sin(angle) * 60;
+                    
+                    const minion = this.add.rectangle(x, y, 20, 20, 0x9400d3);
+                    minion.hp = 30;
+                    minion.maxHp = 30;
+                    minion.damage = 15;
+                    minion.gold = 5;
+                    minion.speed = 1.5;
+                    minion.canShoot = false;
+                    minion.isBoss = false;
+                    this.enemies.add(minion);
+                }
+            }
+
+            enemyShoot(enemy) {
+                const bullet = this.add.circle(enemy.x, enemy.y, 6, 0xff6b6b);
+                const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, this.player.x, this.player.y);
+                bullet.damage = enemy.damage * 0.5;
+                this.enemyBullets.add(bullet);
+                bullet.body.setVelocity(Math.cos(angle) * 300, Math.sin(angle) * 300);
+                bullet.body.setCollideWorldBounds(false);
+                
+                this.time.delayedCall(3000, () => {
+                    if (bullet.active) {
+                        bullet.destroy();
+                        this.enemyBullets.remove(bullet, true, true);
+                    }
+                });
+            }
+
+            hitEnemy(bullet, enemy) {
+                if (!bullet.active || !enemy.active) return;
+
+                // 暴击判定
+                let damage = bullet.damage;
+                const isCrit = Math.random() < playerState.critChance;
+                if (isCrit) damage *= playerState.critDamage;
+                
+                enemy.hp -= damage;
+                
+                // 击退效果
+                const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, enemy.x, enemy.y);
+                enemy.body.setVelocity(Math.cos(angle) * 150, Math.sin(angle) * 150);
+                
+                // 伤害数字
+                this.showDamageNumber(enemy.x, enemy.y, Math.floor(damage), isCrit);
+                
+                // 生命偷取
+                if (playerState.lifeSteal > 0) {
+                    const heal = Math.floor(damage * playerState.lifeSteal);
+                    playerState.hp = Math.min(playerState.hp + heal, playerState.maxHp);
+                }
+
+                if (enemy.hp <= 0) {
+                    this.killEnemy(enemy);
+                }
+
+                // 穿透处理
+                if (bullet.piercing > 0) {
+                    bullet.pierceCount++;
+                    if (bullet.pierceCount > bullet.piercing) {
+                        bullet.destroy();
+                        this.bullets.remove(bullet, true, true);
+                    }
+                } else if (!bullet.explosive) {
+                    bullet.destroy();
+                    this.bullets.remove(bullet, true, true);
+                }
+                
+                // 爆炸子弹
+                if (bullet.explosive) {
+                    this.createExplosion(bullet.x, bullet.y, bullet.damage);
+                    bullet.destroy();
+                    this.bullets.remove(bullet, true, true);
+                }
+            }
+
+            killEnemy(enemy) {
+                // 金币掉落
+                const gold = Math.floor(enemy.gold * (1 + playerState.goldBonus));
+                playerState.gold += gold;
+                gameState.totalGold += gold;
+                playerState.exp += Math.floor(10 * (1 + playerState.expBonus));
+                gameState.totalKills++;
+                
+                // 连击
+                this.addCombo();
+                
+                // 分裂敌人
+                if (enemy.canSplit) {
+                    for (let i = 0; i < 2; i++) {
+                        const angle = (i / 2) * Math.PI + enemy.rotation;
+                        const x = enemy.x + Math.cos(angle) * 30;
+                        const y = enemy.y + Math.sin(angle) * 30;
+                        
+                        const mini = this.add.rectangle(x, y, 15, 15, 0x00ff88);
+                        mini.hp = 10;
+                        mini.maxHp = 10;
+                        mini.damage = 5;
+                        mini.gold = 3;
+                        mini.speed = 2;
+                        mini.canShoot = false;
+                        mini.isBoss = false;
+                        this.enemies.add(mini);
+                    }
+                }
+                
+                // 自爆敌人
+                if (enemy.explosive && !enemy.isBoss) {
+                    this.createExplosion(enemy.x, enemy.y, enemy.damage);
+                }
+                
+                // Boss 击杀
+                if (enemy.isBoss) {
+                    gameState.bossActive = false;
+                    this.currentBoss = null;
+                    document.getElementById('boss-hp-container').style.display = 'none';
+                    this.showAchievement('👹 Boss终结者');
+                    
+                    // Boss 掉落更多道具
+                    for (let i = 0; i < 5; i++) {
+                        this.time.delayedCall(i * 200, () => {
+                            this.spawnDrop(
+                                enemy.x + Phaser.Math.Between(-50, 50),
+                                enemy.y + Phaser.Math.Between(-50, 50)
+                            );
+                        });
+                    }
+                }
+                
+                // 道具掉落
+                if (Math.random() < 0.25) {
+                    this.spawnDrop(enemy.x, enemy.y);
+                }
+                
+                // 粒子效果
+                this.createDeathParticles(enemy.x, enemy.y, enemy.fillColor);
+                
+                // 升级检查
+                this.checkLevelUp();
+                
+                enemy.destroy();
+                this.enemies.remove(enemy, true, true);
+            }
+
+            createExplosion(x, y, damage) {
+                // 爆炸视觉效果
+                const explosion = this.add.circle(x, y, 100, 0xff6b6b, 0.5);
+                this.tweens.add({
+                    targets: explosion,
+                    scaleX: 2,
+                    scaleY: 2,
+                    alpha: 0,
+                    duration: 300,
+                    onComplete: () => explosion.destroy()
+                });
+                
+                // 范围伤害
+                this.enemies.getChildren().forEach(enemy => {
+                    const dist = Phaser.Math.Distance.Between(x, y, enemy.x, enemy.y);
+                    if (dist < 100) {
+                        enemy.hp -= damage * 0.5;
+                        if (enemy.hp <= 0) this.killEnemy(enemy);
+                    }
+                });
+            }
+
+            createDeathParticles(x, y, color) {
+                for (let i = 0; i < 8; i++) {
+                    const particle = this.add.circle(x, y, 4, color);
+                    const angle = (i / 8) * Math.PI * 2;
+                    this.tweens.add({
+                        targets: particle,
+                        x: x + Math.cos(angle) * 50,
+                        y: y + Math.sin(angle) * 50,
+                        alpha: 0,
+                        duration: 300,
+                        onComplete: () => particle.destroy()
+                    });
+                }
+            }
+
+            hitPlayer(player, enemy) {
+                if (gameState.isPaused || gameState.isShopOpen || playerState.invincible) return;
+                
+                let damage = enemy.damage;
+                
+                // 护盾吸收
+                if (playerState.shieldActive && playerState.shieldHp > 0) {
+                    playerState.shieldHp -= damage;
+                    if (playerState.shieldHp <= 0) {
+                        damage = -playerState.shieldHp;
+                        playerState.shieldActive = false;
+                        playerState.shieldHp = 0;
+                    } else {
+                        damage = 0;
+                    }
+                }
+                
+                playerState.hp -= damage;
+                
+                // 屏幕闪红
+                this.cameras.main.flash(100, 255, 0, 0);
+                this.cameras.main.shake(100, 0.01);
+                
+                // 重置连击
+                playerState.combo = 0;
+                
+                // 触发无敌时间 (1.5秒)
+                playerState.invincible = true;
+                this.player.setFillStyle(0x4ade80, 0.5); // 半透明显示无敌状态
+                this.time.delayedCall(1500, () => {
+                    playerState.invincible = false;
+                    this.player.setFillStyle(0x4ade80, 1);
+                });
+                
+                if (playerState.hp <= 0) {
+                    this.gameOver();
+                }
+            }
+
+            hitByBullet(player, bullet) {
+                if (gameState.isPaused || gameState.isShopOpen || playerState.invincible) return;
+                
+                let damage = bullet.damage;
+                
+                if (playerState.shieldActive && playerState.shieldHp > 0) {
+                    playerState.shieldHp -= damage;
+                    if (playerState.shieldHp <= 0) {
+                        damage = -playerState.shieldHp;
+                        playerState.shieldActive = false;
+                        playerState.shieldHp = 0;
+                    } else {
+                        damage = 0;
+                    }
+                }
+                
+                playerState.hp -= damage;
+                bullet.destroy();
+                this.enemyBullets.remove(bullet, true, true);
+                
+                this.cameras.main.flash(50, 255, 0, 0);
+                
+                // 触发无敌时间 (1.5秒)
+                playerState.invincible = true;
+                this.player.setFillStyle(0x4ade80, 0.5);
+                this.time.delayedCall(1500, () => {
+                    playerState.invincible = false;
+                    this.player.setFillStyle(0x4ade80, 1);
+                });
+                
+                if (playerState.hp <= 0) {
+                    this.gameOver();
+                }
+            }
+
+            spawnDrop(x, y) {
+                const types = [
+                    { name: 'gold', color: 0xffd700, effect: () => { const g = Phaser.Math.Between(15, 30); playerState.gold += g; gameState.totalGold += g; this.showFloatText(`+${g}💰`, x, y); } },
+                    { name: 'hp', color: 0x4ade80, effect: () => { playerState.hp = Math.min(playerState.hp + 20, playerState.maxHp); this.showFloatText('+20❤️', x, y); } },
+                    { name: 'exp', color: 0xa78bfa, effect: () => { playerState.exp += 25; this.showFloatText('+25⭐', x, y); this.checkLevelUp(); } },
+                    { name: 'damage', color: 0xff6b6b, effect: () => { playerState.weapons[playerState.currentWeapon].damage += 3; this.showFloatText('伤害+3', x, y); } },
+                    { name: 'speed', color: 0x60a5fa, effect: () => { playerState.weapons[playerState.currentWeapon].fireRate = Math.max(50, playerState.weapons[playerState.currentWeapon].fireRate - 20); this.showFloatText('射速↑', x, y); } },
+                    { name: 'shield', color: 0x00ffff, effect: () => { playerState.shieldHp += 30; playerState.shieldActive = true; this.showFloatText('+30护盾', x, y); } },
+                ];
+
+                const dropType = types[Phaser.Math.Between(0, types.length - 1)];
+                const drop = this.add.circle(x, y, 12, dropType.color);
+                drop.effect = dropType.effect;
+                this.drops.add(drop);
+
+                this.time.delayedCall(8000, () => {
+                    if (drop.active) {
+                        drop.destroy();
+                        this.drops.remove(drop, true, true);
+                    }
+                });
+            }
+
+            collectDrop(player, drop) {
+                if (!drop.active) return;
+                drop.effect();
+                drop.destroy();
+                this.drops.remove(drop, true, true);
+            }
+
+            handleWave(delta) {
+                this.waveTimer += delta;
+                
+                // Boss 波 (每5波)
+                if (gameState.wave % 5 === 0 && !gameState.bossActive && this.enemies.getLength() === 0) {
+                    this.spawnBoss();
+                }
+                
+                // 普通波数递增
+                if (this.waveTimer > gameState.waveDuration && !gameState.bossActive) {
+                    gameState.wave++;
+                    this.waveTimer = 0;
+                    gameState.waveDuration += 5000;
+                    this.showFloatText(`🌊 波数 ${gameState.wave}!`, CONFIG.width/2, CONFIG.height/2, 32);
+                    
+                    // 波数奖励
+                    playerState.hp = Math.min(playerState.hp + 20, playerState.maxHp);
+                    playerState.gold += gameState.wave * 5;
+                }
+                
+                // 更新 Boss 血条
+                if (this.currentBoss && this.currentBoss.active) {
+                    const percent = (this.currentBoss.hp / this.currentBoss.maxHp) * 100;
+                    document.getElementById('boss-hp-fill').style.width = `${percent}%`;
+                }
+            }
+
+            handleAutoHeal(delta) {
+                if (playerState.autoHeal > 0) {
+                    this.healTimer += delta;
+                    if (this.healTimer > 1000) {
+                        playerState.hp = Math.min(playerState.hp + playerState.autoHeal, playerState.maxHp);
+                        this.healTimer = 0;
+                    }
+                }
+            }
+
+            handleCombo(delta) {
+                if (playerState.combo > 0) {
+                    playerState.comboTimer += delta;
+                    if (playerState.comboTimer > playerState.comboTimeout) {
+                        playerState.combo = 0;
+                        playerState.comboTimer = 0;
+                    }
+                }
+            }
+
+            addCombo() {
+                playerState.combo++;
+                playerState.comboTimer = 0;
+                gameState.maxCombo = Math.max(gameState.maxCombo, playerState.combo);
+                
+                // 连击奖励
+                if (playerState.combo % 10 === 0) {
+                    const bonus = playerState.combo;
+                    playerState.gold += bonus;
+                    this.showFloatText(`🔥 ${playerState.combo}连击! +${bonus}💰`, this.player.x, this.player.y - 50);
+                }
+                
+                // 更新连击显示
+                document.getElementById('combo-count').textContent = playerState.combo;
+                document.getElementById('combo-display').classList.add('show');
+            }
+
+            checkLevelUp() {
+                while (playerState.exp >= playerState.expToLevel) {
+                    playerState.exp -= playerState.expToLevel;
+                    playerState.level++;
+                    playerState.expToLevel = Math.floor(playerState.expToLevel * 1.5);
+                    
+                    // 升级奖励
+                    playerState.maxHp += 10;
+                    playerState.hp = playerState.maxHp;
+                    playerState.gold += 50;
+                    
+                    this.showFloatText(`🎉 升级! Lv.${playerState.level}`, CONFIG.width/2, CONFIG.height/2, 36);
+                    this.cameras.main.flash(200, 74, 222, 128);
+                }
+            }
+
+            switchWeapon(index) {
+                if (playerState.weapons[index] && playerState.weapons[index].unlocked) {
+                    playerState.currentWeapon = index;
+                    this.updateWeaponSlots();
+                }
+            }
+
+            useSkill(skillKey) {
+                const skill = playerState.skills[skillKey];
+                if (!skill || !skill.ready || !skill.unlocked) return;
+                
+                skill.ready = false;
+                playerState.skillCooldowns[skillKey] = skill.cooldown;
+                
+                switch(skillKey) {
+                    case 'dash':
+                        const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, this.pointer.x, this.pointer.y);
+                        this.player.body.setVelocity(Math.cos(angle) * 400, Math.sin(angle) * 400);
+                        this.tweens.add({
+                            targets: this.player,
+                            alpha: 0.5,
+                            duration: 100,
+                            yoyo: true
+                        });
+                        break;
+                    case 'shield':
+                        playerState.shieldActive = true;
+                        playerState.shieldHp += 100;
+                        this.time.delayedCall(skill.duration, () => {
+                            // 护盾持续时间结束但保留剩余值
+                        });
+                        break;
+                    case 'bomb':
+                        this.createExplosion(this.player.x, this.player.y, skill.damage);
+                        break;
+                }
+            }
+
+            updateSkillCooldowns(delta) {
+                Object.keys(playerState.skillCooldowns).forEach(key => {
+                    if (playerState.skillCooldowns[key] > 0) {
+                        playerState.skillCooldowns[key] -= delta;
+                        if (playerState.skillCooldowns[key] <= 0) {
+                            playerState.skillCooldowns[key] = 0;
+                            playerState.skills[key].ready = true;
+                        }
+                    }
+                });
+                
+                // 更新 UI
+                document.getElementById('skill-1').className = `skill-slot ${playerState.skills.dash.ready ? 'ready' : ''}`;
+                document.getElementById('skill-2').className = `skill-slot ${playerState.skills.shield.ready ? 'ready' : ''}`;
+                document.getElementById('skill-3').className = `skill-slot ${playerState.skills.bomb.ready ? 'ready' : ''}`;
+            }
+
+            toggleShop() {
+                gameState.isShopOpen = !gameState.isShopOpen;
+                const shopEl = document.getElementById('shop');
+                shopEl.style.display = gameState.isShopOpen ? 'block' : 'none';
+                
+                if (gameState.isShopOpen) {
+                    this.physics.pause();
+                    this.renderShop();
+                } else {
+                    this.physics.resume();
+                }
+            }
+
+            togglePause() {
+                if (gameState.isShopOpen) return;
+                
+                gameState.isPaused = !gameState.isPaused;
+                document.getElementById('pause-hint').style.display = gameState.isPaused ? 'block' : 'none';
+                
+                if (gameState.isPaused) {
+                    this.physics.pause();
+                } else {
+                    this.physics.resume();
+                }
+            }
+
+            renderShop() {
+                // 清空现有内容
+                document.getElementById('weapons-shop').innerHTML = '<h3>🔫 武器</h3>';
+                document.getElementById('upgrades-shop').innerHTML = '<h3>⬆️ 升级</h3>';
+                document.getElementById('skills-shop').innerHTML = '<h3>✨ 技能</h3>';
+                document.getElementById('items-shop').innerHTML = '<h3>💊 消耗品</h3>';
+                
+                // 武器
+                Object.entries(WEAPONS).forEach(([id, weapon]) => {
+                    const owned = playerState.weapons.find(w => w.id === id)?.unlocked;
+                    const canAfford = playerState.gold >= weapon.price;
+                    
+                    const div = document.createElement('div');
+                    div.className = `shop-item ${!canAfford && !owned ? 'disabled' : ''}`;
+                    div.innerHTML = `
+                        <div>
+                            <h4>${weapon.name} ${owned ? '<span class="owned">已拥有</span>' : ''}</h4>
+                            <p>${weapon.desc} | 伤害:${weapon.damage} 射速:${weapon.fireRate}ms</p>
+                        </div>
+                        <div class="${owned ? 'maxed' : 'price'}">
+                            ${owned ? '✓' : weapon.price + ' 💰'}
+                        </div>
+                    `;
+                    
+                    if (!owned && canAfford) {
+                        div.onclick = () => {
+                            playerState.gold -= weapon.price;
+                            const w = playerState.weapons.find(w => w.id === id);
+                            if (w) w.unlocked = true;
+                            else playerState.weapons.push({...weapon, id, unlocked: true});
+                            this.updateWeaponSlots();
+                            this.renderShop();
+                        };
+                    }
+                    
+                    document.getElementById('weapons-shop').appendChild(div);
+                });
+                
+                // 升级
+                SHOP_ITEMS.upgrades.forEach(item => {
+                    const owned = item.current || 0;
+                    const canAfford = playerState.gold >= item.price;
+                    const maxed = owned >= item.max;
+                    
+                    const div = document.createElement('div');
+                    div.className = `shop-item ${!canAfford || maxed ? 'disabled' : ''}`;
+                    div.innerHTML = `
+                        <div>
+                            <h4>${item.name}</h4>
+                            <p>${item.desc}</p>
+                        </div>
+                        <div class="${maxed ? 'maxed' : 'price'}">
+                            ${maxed ? '已满级' : item.price + ' 💰'}
+                        </div>
+                    `;
+                    
+                    if (canAfford && !maxed) {
+                        div.onclick = () => {
+                            playerState.gold -= item.price;
+                            item.current = (item.current || 0) + 1;
+                            item.effect();
+                            this.renderShop();
+                        };
+                    }
+                    
+                    document.getElementById('upgrades-shop').appendChild(div);
+                });
+                
+                // 技能
+                Object.entries(playerState.skills).forEach(([key, skill]) => {
+                    const owned = skill.unlocked;
+                    const canAfford = playerState.gold >= skill.unlockCost;
+                    
+                    const div = document.createElement('div');
+                    div.className = `shop-item ${!canAfford && !owned ? 'disabled' : ''}`;
+                    div.innerHTML = `
+                        <div>
+                            <h4>${skill.name} (${skill.key})</h4>
+                            <p>冷却: ${skill.cooldown/1000}秒</p>
+                        </div>
+                        <div class="${owned ? 'maxed' : 'price'}">
+                            ${owned ? '✓' : skill.unlockCost + ' 💰'}
+                        </div>
+                    `;
+                    
+                    if (!owned && canAfford) {
+                        div.onclick = () => {
+                            playerState.gold -= skill.unlockCost;
+                            skill.unlocked = true;
+                            this.renderShop();
+                        };
+                    }
+                    
+                    document.getElementById('skills-shop').appendChild(div);
+                });
+                
+                // 消耗品
+                SHOP_ITEMS.items.forEach(item => {
+                    const canAfford = playerState.gold >= item.price;
+                    
+                    const div = document.createElement('div');
+                    div.className = `shop-item ${!canAfford ? 'disabled' : ''}`;
+                    div.innerHTML = `
+                        <div>
+                            <h4>${item.name}</h4>
+                            <p>${item.desc}</p>
+                        </div>
+                        <div class="price">${item.price} 💰</div>
+                    `;
+                    
+                    if (canAfford) {
+                        div.onclick = () => {
+                            playerState.gold -= item.price;
+                            item.effect();
+                            this.renderShop();
+                        };
+                    }
+                    
+                    document.getElementById('items-shop').appendChild(div);
+                });
+                
+                document.getElementById('gold-display').textContent = playerState.gold;
+            }
+
+            updateWeaponSlots() {
+                for (let i = 0; i < 5; i++) {
+                    const slot = document.getElementById(`weapon-${i+1}`);
+                    const weapon = playerState.weapons[i];
+                    if (weapon && weapon.unlocked) {
+                        slot.innerHTML = `${weapon.name.split(' ')[0]}<span>${i+1}</span>`;
+                        slot.className = `weapon-slot ${i === playerState.currentWeapon ? 'active' : ''}`;
+                    } else {
+                        slot.innerHTML = `🔒<span>${i+1}</span>`;
+                        slot.className = 'weapon-slot';
+                    }
+                }
+            }
+
+            showDamageNumber(x, y, damage, isCrit) {
+                const text = this.add.text(x, y, damage.toString(), {
+                    fontSize: isCrit ? '24px' : '18px',
+                    color: isCrit ? '#ffd700' : '#ffffff',
+                    fontStyle: 'bold',
+                    stroke: '#000000',
+                    strokeThickness: 3,
+                });
+                text.setOrigin(0.5);
+                
+                this.tweens.add({
+                    targets: text,
+                    y: y - 40,
+                    alpha: 0,
+                    duration: 800,
+                    onComplete: () => text.destroy()
+                });
+            }
+
+            showFloatText(text, x, y, size = 20) {
+                const floatText = this.add.text(x, y, text, {
+                    fontSize: size + 'px',
+                    color: '#ffffff',
+                    stroke: '#000000',
+                    strokeThickness: 4,
+                });
+                floatText.setOrigin(0.5);
+
+                this.tweens.add({
+                    targets: floatText,
+                    y: y - 60,
+                    alpha: 0,
+                    duration: 1200,
+                    onComplete: () => floatText.destroy(),
+                });
+            }
+
+            updateMinimap() {
+                const ctx = this.minimapCtx;
+                const scaleX = 150 / CONFIG.width;
+                const scaleY = 150 / CONFIG.height;
+                
+                ctx.clearRect(0, 0, 150, 150);
+                
+                // 背景
+                ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                ctx.fillRect(0, 0, 150, 150);
+                
+                // 玩家
+                ctx.fillStyle = '#4ade80';
+                ctx.beginPath();
+                ctx.arc(this.player.x * scaleX, this.player.y * scaleY, 4, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 敌人
+                ctx.fillStyle = '#e94560';
+                this.enemies.getChildren().forEach(enemy => {
+                    ctx.beginPath();
+                    ctx.arc(enemy.x * scaleX, enemy.y * scaleY, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+                
+                // 道具
+                ctx.fillStyle = '#ffd700';
+                this.drops.getChildren().forEach(drop => {
+                    ctx.beginPath();
+                    ctx.arc(drop.x * scaleX, drop.y * scaleY, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            }
+
+            checkAchievements() {
+                ACHIEVEMENTS.forEach(achievement => {
+                    if (!unlockedAchievements.has(achievement.id) && achievement.check()) {
+                        this.unlockAchievement(achievement);
+                    }
+                });
+            }
+
+            unlockAchievement(achievement) {
+                unlockedAchievements.add(achievement.id);
+                this.showAchievement(achievement.name);
+            }
+
+            showAchievement(name) {
+                const popup = document.getElementById('achievement-popup');
+                popup.textContent = `🏆 成就解锁: ${name}`;
+                popup.style.display = 'block';
+                
+                setTimeout(() => {
+                    popup.style.display = 'none';
+                }, 3000);
+            }
+
+            updateUI() {
+                const hpPercent = (playerState.hp / playerState.maxHp) * 100;
+                document.getElementById('hp-fill').style.width = `${hpPercent}%`;
+                document.getElementById('hp-text').textContent = `${Math.floor(playerState.hp)}/${playerState.maxHp}`;
+                
+                const expPercent = (playerState.exp / playerState.expToLevel) * 100;
+                document.getElementById('exp-fill').style.width = `${expPercent}%`;
+                document.getElementById('exp-text').textContent = `${playerState.exp}/${playerState.expToLevel}`;
+                
+                document.getElementById('level-display').textContent = playerState.level;
+                document.getElementById('gold-display').textContent = playerState.gold;
+                document.getElementById('wave-display').textContent = gameState.wave;
+                document.getElementById('score-display').textContent = gameState.score;
+                document.getElementById('dmg-display').textContent = Math.floor(playerState.weapons[playerState.currentWeapon].damage);
+                
+                this.updateWeaponSlots();
+            }
+
+            gameOver() {
+                gameState.isStarted = false;
+                document.getElementById('final-score').textContent = gameState.score;
+                document.getElementById('final-wave').textContent = gameState.wave;
+                document.getElementById('final-kills').textContent = gameState.totalKills;
+                document.getElementById('final-combo').textContent = gameState.maxCombo;
+                document.getElementById('final-gold').textContent = gameState.totalGold;
+                document.getElementById('game-over').style.display = 'block';
+                
+                // 保存到排行榜
+                saveToLeaderboard(gameState.score, gameState.wave);
+                
+                this.physics.pause();
+            }
+        }
+
+        // ==================== 游戏初始化 ====================
+        let game;
+        let scene;
+
+        function initGame() {
+            game = new Phaser.Game({
+                type: Phaser.AUTO,
+                width: CONFIG.width,
+                height: CONFIG.height,
+                parent: 'game-container',
+                backgroundColor: '#16213e',
+                scene: MainScene,
+                physics: {
+                    default: 'arcade',
+                    arcade: { debug: false }
+                }
+            });
+            scene = game.scene.getScene('MainScene');
+        }
+
+        // ==================== 难度选择 ====================
+        document.querySelectorAll('.difficulty-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.difficulty-btn').forEach(b => b.classList.remove('selected'));
+                btn.classList.add('selected');
+                gameState.difficulty = btn.dataset.difficulty;
+            });
+        });
+
+        // ==================== 开始游戏 ====================
+        function startGame() {
+            document.getElementById('start-screen').style.display = 'none';
+            gameState.isStarted = true;
+            
+            // 重置状态
+            gameState.score = 0;
+            gameState.wave = 1;
+            gameState.waveTimer = 0;
+            gameState.bossActive = false;
+            gameState.totalKills = 0;
+            gameState.maxCombo = 0;
+            gameState.totalGold = 0;
+            
+            playerState.hp = 150;
+            playerState.maxHp = 150;
+            playerState.gold = 0;
+            playerState.exp = 0;
+            playerState.level = 1;
+            playerState.expToLevel = 100;
+            playerState.combo = 0;
+            playerState.critChance = 0;
+            playerState.critDamage = 1.5;
+            playerState.lifeSteal = 0;
+            playerState.autoHeal = 0;
+            playerState.goldBonus = 0;
+            playerState.expBonus = 0;
+            playerState.shieldActive = false;
+            playerState.shieldHp = 0;
+            playerState.currentWeapon = 0;
+            playerState.invincible = false;
+            
+            playerState.weapons = [
+                { id: 'pistol', name: '🔫 手枪', damage: 10, fireRate: 300, bulletCount: 1, bulletSpread: 0, piercing: 0, bulletSize: 8, bulletColor: 0xffd700, unlocked: true },
+                { id: 'shotgun', name: '🔫 霰弹枪', damage: 8, fireRate: 600, bulletCount: 5, bulletSpread: 0.3, piercing: 0, bulletSize: 6, bulletColor: 0xff6b6b, unlocked: false },
+                { id: 'rifle', name: '🔫 步枪', damage: 25, fireRate: 150, bulletCount: 1, bulletSpread: 0, piercing: 2, bulletSize: 4, bulletColor: 0x60a5fa, unlocked: false },
+            ];
+            
+            playerState.skills.dash.unlocked = false;
+            playerState.skills.dash.ready = true;
+            playerState.skills.shield.unlocked = false;
+            playerState.skills.shield.ready = true;
+            playerState.skills.bomb.unlocked = false;
+            playerState.skills.bomb.ready = true;
+            
+            SHOP_ITEMS.upgrades.forEach(item => item.current = 0);
+            
+            CONFIG.playerSpeed = 250;
+
+            if (game) {
+                game.scene.getScene('MainScene').scene.restart();
+            }
+        }
+
+        function restartGame() {
+            document.getElementById('game-over').style.display = 'none';
+            startGame();
+        }
+
+        // ==================== 排行榜 ====================
+        function saveToLeaderboard(score, wave) {
+            let leaderboard = JSON.parse(localStorage.getItem('shooterLeaderboard') || '[]');
+            leaderboard.push({
+                score,
+                wave,
+                date: new Date().toLocaleDateString()
+            });
+            leaderboard.sort((a, b) => b.score - a.score);
+            leaderboard = leaderboard.slice(0, 10);
+            localStorage.setItem('shooterLeaderboard', JSON.stringify(leaderboard));
+        }
+
+        function showLeaderboard() {
+            const leaderboard = JSON.parse(localStorage.getItem('shooterLeaderboard') || '[]');
+            const tbody = document.getElementById('leaderboard-body');
+            tbody.innerHTML = '';
+            
+            if (leaderboard.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#888;">暂无记录</td></tr>';
+            } else {
+                leaderboard.forEach((entry, i) => {
+                    const rankClass = i < 3 ? `rank-${i+1}` : '';
+                    tbody.innerHTML += `
+                        <tr>
+                            <td class="${rankClass}">${i + 1}</td>
+                            <td>${entry.score}</td>
+                            <td>${entry.wave}</td>
+                            <td>${entry.date}</td>
+                        </tr>
+                    `;
+                });
+            }
+            
+            document.getElementById('leaderboard').style.display = 'block';
+        }
+
+        function hideLeaderboard() {
+            document.getElementById('leaderboard').style.display = 'none';
+        }
+
+        // 初始化
+        initGame();
+    </script>
+</body>
+</html>
