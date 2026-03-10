@@ -1140,6 +1140,9 @@
             }
 
             create() {
+                // 创建背景星空
+                this.createStarfield();
+                
                 // 初始化组
                 this.bullets = this.physics.add.group();
                 this.enemies = this.physics.add.group();
@@ -1167,6 +1170,71 @@
                 
                 // 小地图
                 this.minimapCtx = document.getElementById('minimap-canvas').getContext('2d');
+            }
+            
+            createStarfield() {
+                // 创建动态星空背景
+                this.stars = this.add.group();
+                this.twinklingStars = [];
+                
+                // 创建 100 颗星星
+                for (let i = 0; i < 100; i++) {
+                    const x = Phaser.Math.Between(0, CONFIG.width);
+                    const y = Phaser.Math.Between(0, CONFIG.height);
+                    const size = Phaser.Math.Between(1, 3);
+                    const brightness = Phaser.Math.Between(150, 255);
+                    const color = Phaser.Display.Color.GetColor(brightness, brightness, brightness);
+                    
+                    const star = this.add.circle(x, y, size, color);
+                    this.stars.add(star);
+                    
+                    // 保存星星的闪烁参数
+                    this.twinklingStars.push({
+                        star: star,
+                        baseAlpha: Phaser.Math.FloatBetween(0.3, 0.8),
+                        speed: Phaser.Math.FloatBetween(0.5, 2),
+                        offset: Phaser.Math.FloatBetween(0, Math.PI * 2)
+                    });
+                }
+                
+                // 添加星云效果
+                this.nebulae = [];
+                for (let i = 0; i < 3; i++) {
+                    const x = Phaser.Math.Between(0, CONFIG.width);
+                    const y = Phaser.Math.Between(0, CONFIG.height);
+                    const radius = Phaser.Math.Between(100, 200);
+                    const color = Phaser.Math.Between(0, 2) === 0 ? 0x4ade80 : (Phaser.Math.Between(0, 1) === 0 ? 0x60a5fa : 0xa78bfa);
+                    
+                    const nebula = this.add.circle(x, y, radius, color, 0.05);
+                    nebula.setBlendMode(Phaser.BlendModes.ADD);
+                    this.nebulae.push({
+                        circle: nebula,
+                        scale: 1,
+                        speed: Phaser.Math.FloatBetween(0.001, 0.003)
+                    });
+                }
+                
+                // 启动星空动画
+                this.starTime = 0;
+            }
+            
+            updateStarfield(delta) {
+                this.starTime += delta * 0.001;
+                
+                // 更新星星闪烁
+                this.twinklingStars.forEach(item => {
+                    const alpha = item.baseAlpha + Math.sin(this.starTime * item.speed + item.offset) * 0.2;
+                    item.star.setAlpha(Phaser.Math.Clamp(alpha, 0.1, 1));
+                });
+                
+                // 更新星云
+                this.nebulae.forEach(nebula => {
+                    nebula.scale += nebula.speed;
+                    if (nebula.scale > 1.5 || nebula.scale < 0.8) {
+                        nebula.speed *= -1;
+                    }
+                    nebula.circle.setScale(nebula.scale);
+                });
             }
 
             createPlayer() {
@@ -1228,6 +1296,9 @@
 
             update(time, delta) {
                 if (gameState.isPaused || gameState.isShopOpen || !gameState.isStarted) return;
+
+                // 更新星空背景
+                this.updateStarfield(delta);
 
                 // 玩家移动
                 this.handleMovement();
@@ -1308,12 +1379,19 @@
 
                 for (let i = 0; i < weapon.bulletCount; i++) {
                     const spread = (i - (weapon.bulletCount - 1) / 2) * weapon.bulletSpread;
+                    
+                    // 创建子弹 - 添加发光效果
                     const bullet = this.add.rectangle(
                         this.player.x, this.player.y, 
                         weapon.bulletSize, weapon.bulletSize + 7, 
                         weapon.bulletColor
                     );
-
+                    bullet.setBlendMode(Phaser.BlendModes.ADD);
+                    
+                    // 添加子弹光晕
+                    const glow = this.add.circle(this.player.x, this.player.y, weapon.bulletSize + 3, weapon.bulletColor, 0.3);
+                    bullet.glow = glow;
+                    
                     const fireAngle = angle + spread;
                     const velocityX = Math.cos(fireAngle) * CONFIG.bulletSpeed;
                     const velocityY = Math.sin(fireAngle) * CONFIG.bulletSpeed;
@@ -1326,14 +1404,43 @@
                     this.bullets.add(bullet);
                     bullet.body.setVelocity(velocityX, velocityY);
                     bullet.body.setCollideWorldBounds(false);
+                    
+                    // 创建子弹轨迹粒子
+                    this.createBulletTrail(bullet, weapon.bulletColor);
 
                     this.time.delayedCall(2000, () => {
                         if (bullet.active) {
+                            if (bullet.glow) bullet.glow.destroy();
                             bullet.destroy();
                             this.bullets.remove(bullet, true, true);
                         }
                     });
                 }
+            }
+            
+            createBulletTrail(bullet, color) {
+                // 子弹轨迹效果 - 持续生成小粒子
+                const trailEmitter = this.time.addEvent({
+                    delay: 50,
+                    callback: () => {
+                        if (!bullet.active) {
+                            trailEmitter.remove();
+                            return;
+                        }
+                        
+                        const trail = this.add.circle(bullet.x, bullet.y, 3, color, 0.5);
+                        trail.setBlendMode(Phaser.BlendModes.ADD);
+                        
+                        this.tweens.add({
+                            targets: trail,
+                            alpha: 0,
+                            scale: 0.2,
+                            duration: 300,
+                            onComplete: () => trail.destroy()
+                        });
+                    },
+                    repeat: -1
+                });
             }
 
             handleEnemySpawning(delta) {
@@ -1624,40 +1731,129 @@
             }
 
             createExplosion(x, y, damage) {
-                // 爆炸视觉效果
-                const explosion = this.add.circle(x, y, 100, 0xff6b6b, 0.5);
+                // 屏幕震动
+                this.cameras.main.shake(200, 0.02);
+                
+                // 爆炸核心
+                const explosionCore = this.add.circle(x, y, 80, 0xffaa00, 0.9);
+                explosionCore.setBlendMode(Phaser.BlendModes.ADD);
                 this.tweens.add({
-                    targets: explosion,
-                    scaleX: 2,
-                    scaleY: 2,
+                    targets: explosionCore,
+                    scaleX: 3,
+                    scaleY: 3,
                     alpha: 0,
-                    duration: 300,
-                    onComplete: () => explosion.destroy()
+                    duration: 500,
+                    ease: 'Power2',
+                    onComplete: () => explosionCore.destroy()
                 });
+                
+                // 爆炸外圈
+                const explosionRing = this.add.circle(x, y, 50, 0xff4400, 0.7);
+                explosionRing.setBlendMode(Phaser.BlendModes.ADD);
+                this.tweens.add({
+                    targets: explosionRing,
+                    scaleX: 4,
+                    scaleY: 4,
+                    alpha: 0,
+                    duration: 600,
+                    ease: 'Power2',
+                    delay: 100,
+                    onComplete: () => explosionRing.destroy()
+                });
+                
+                // 爆炸碎片
+                for (let i = 0; i < 12; i++) {
+                    const fragment = this.add.circle(x, y, Phaser.Math.Between(4, 8), 0xff6600);
+                    const angle = (i / 12) * Math.PI * 2;
+                    const distance = Phaser.Math.Between(100, 200);
+                    
+                    this.tweens.add({
+                        targets: fragment,
+                        x: x + Math.cos(angle) * distance,
+                        y: y + Math.sin(angle) * distance,
+                        alpha: 0,
+                        scale: 0.2,
+                        duration: Phaser.Math.Between(500, 800),
+                        onComplete: () => fragment.destroy()
+                    });
+                }
                 
                 // 范围伤害
                 this.enemies.getChildren().forEach(enemy => {
                     const dist = Phaser.Math.Distance.Between(x, y, enemy.x, enemy.y);
-                    if (dist < 100) {
+                    if (dist < 150) {
                         enemy.hp -= damage * 0.5;
                         if (enemy.hp <= 0) this.killEnemy(enemy);
                     }
                 });
             }
 
-            createDeathParticles(x, y, color) {
-                for (let i = 0; i < 8; i++) {
-                    const particle = this.add.circle(x, y, 4, color);
-                    const angle = (i / 8) * Math.PI * 2;
+            createDeathParticles(x, y, color, count = 16) {
+                // 增强粒子效果 - 更多粒子，更炫酷
+                for (let i = 0; i < count; i++) {
+                    const size = Phaser.Math.Between(3, 8);
+                    const particle = this.add.circle(x, y, size, color);
+                    const angle = (i / count) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.5, 0.5);
+                    const distance = Phaser.Math.Between(50, 120);
+                    const velocity = Phaser.Math.Between(80, 150);
+                    
+                    // 随机颜色变化
+                    if (Phaser.Math.Between(0, 100) < 30) {
+                        particle.setFillStyle(Phaser.Math.Between(0xffffff, 0xffff00));
+                    }
+                    
                     this.tweens.add({
                         targets: particle,
-                        x: x + Math.cos(angle) * 50,
-                        y: y + Math.sin(angle) * 50,
+                        x: x + Math.cos(angle) * distance,
+                        y: y + Math.sin(angle) * distance,
                         alpha: 0,
-                        duration: 300,
-                        onComplete: () => particle.destroy()
+                        scale: 0.2,
+                        duration: Phaser.Math.Between(400, 700),
+                        ease: 'Power2',
+                        onComplete: () => {
+                            // 创建小火花
+                            this.createSpark(particle.x, particle.y);
+                            particle.destroy();
+                        }
                     });
                 }
+                
+                // 添加冲击波效果
+                this.createShockwave(x, y);
+            }
+            
+            createSpark(x, y) {
+                // 小火花效果
+                for (let i = 0; i < 3; i++) {
+                    const spark = this.add.circle(x, y, 2, 0xffff00);
+                    const angle = Phaser.Math.Between(0, Math.PI * 2);
+                    const distance = Phaser.Math.Between(10, 30);
+                    
+                    this.tweens.add({
+                        targets: spark,
+                        x: x + Math.cos(angle) * distance,
+                        y: y + Math.sin(angle) * distance,
+                        alpha: 0,
+                        scale: 0,
+                        duration: Phaser.Math.Between(200, 400),
+                        onComplete: () => spark.destroy()
+                    });
+                }
+            }
+            
+            createShockwave(x, y) {
+                // 冲击波效果
+                const shockwave = this.add.circle(x, y, 10, 0xffffff, 0.8);
+                shockwave.setBlendMode(Phaser.BlendModes.ADD);
+                
+                this.tweens.add({
+                    targets: shockwave,
+                    scale: 8,
+                    alpha: 0,
+                    duration: 400,
+                    ease: 'Power2',
+                    onComplete: () => shockwave.destroy()
+                });
             }
 
             hitPlayer(player, enemy) {
