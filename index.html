@@ -1503,7 +1503,8 @@
             spawnBoss() {
                 gameState.bossActive = true;
                 
-                const boss = this.add.rectangle(CONFIG.width/2, -50, 60, 60, 0xff0000);
+                // Boss 出场动画 - 从上方落下
+                const boss = this.add.rectangle(CONFIG.width/2, -80, 60, 60, 0xff0000);
                 boss.hp = 500 * (1 + gameState.wave * 0.2);
                 boss.maxHp = boss.hp;
                 boss.damage = 30;
@@ -1512,12 +1513,52 @@
                 boss.isBoss = true;
                 boss.canShoot = true;
                 boss.shootTimer = 0;
+                
+                // Boss 光环效果
+                const bossGlow = this.add.circle(CONFIG.width/2, -80, 80, 0xff0000, 0.3);
+                bossGlow.setBlendMode(Phaser.BlendModes.ADD);
+                boss.glow = bossGlow;
+                
+                // Boss 能量粒子
+                boss.particles = this.add.group();
+                
                 this.enemies.add(boss);
+                
+                // 出场动画
+                this.tweens.add({
+                    targets: boss,
+                    y: CONFIG.height/2 - 100,
+                    duration: 2000,
+                    ease: 'Power2'
+                });
+                
+                this.tweens.add({
+                    targets: bossGlow,
+                    scale: 1.5,
+                    alpha: 0.5,
+                    duration: 2000,
+                    repeat: -1,
+                    yoyo: true
+                });
                 
                 // 显示 Boss 血条
                 this.currentBoss = boss;
                 document.getElementById('boss-hp-container').style.display = 'block';
                 document.getElementById('boss-name').textContent = `👹 波数 ${gameState.wave} Boss`;
+                
+                // Boss 出场警告 - 屏幕闪红
+                this.cameras.main.flash(500, 255, 0, 0, false);
+                
+                // 创建 Boss 出场冲击波
+                const shockwave = this.add.circle(CONFIG.width/2, CONFIG.height/2, 10, 0xff0000, 0.8);
+                shockwave.setBlendMode(Phaser.BlendModes.ADD);
+                this.tweens.add({
+                    targets: shockwave,
+                    scale: 15,
+                    alpha: 0,
+                    duration: 1000,
+                    onComplete: () => shockwave.destroy()
+                });
             }
 
             updateEnemies(delta) {
@@ -1527,6 +1568,38 @@
                     const speed = CONFIG.enemySpeedBase * enemy.speed * (1 + gameState.wave * 0.05);
                     enemy.body.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
                     enemy.setRotation(angle);
+                    
+                    // Boss 光环跟随
+                    if (enemy.glow) {
+                        enemy.glow.setPosition(enemy.x, enemy.y);
+                    }
+                    
+                    // Boss 能量粒子效果
+                    if (enemy.isBoss && enemy.particles) {
+                        if (Phaser.Math.Between(0, 100) < 20) {
+                            const particle = this.add.circle(
+                                enemy.x + Phaser.Math.Between(-40, 40),
+                                enemy.y + Phaser.Math.Between(-40, 40),
+                                Phaser.Math.Between(3, 6),
+                                0xff0000,
+                                0.6
+                            );
+                            particle.setBlendMode(Phaser.BlendModes.ADD);
+                            enemy.particles.add(particle);
+                            
+                            this.tweens.add({
+                                targets: particle,
+                                y: particle.y - 50,
+                                alpha: 0,
+                                scale: 0.2,
+                                duration: Phaser.Math.Between(500, 1000),
+                                onComplete: () => {
+                                    particle.destroy();
+                                    enemy.particles.remove(particle);
+                                }
+                            });
+                        }
+                    }
                     
                     // 射击敌人
                     if (enemy.canShoot) {
@@ -1702,17 +1775,433 @@
                     gameState.bossActive = false;
                     this.currentBoss = null;
                     document.getElementById('boss-hp-container').style.display = 'none';
-                    this.showAchievement('👹 Boss终结者');
+                    this.showAchievement('👹 Boss 终结者');
+                    
+                    // Boss 死亡大爆炸
+                    this.createBossDeathExplosion(enemy.x, enemy.y);
+                    
+                    // 清理 Boss 特效
+                    if (enemy.glow) enemy.glow.destroy();
+                    if (enemy.particles) enemy.particles.clear(true, true);
+                    
+                    // 屏幕长时间震动
+                    this.cameras.main.shake(1000, 0.03);
                     
                     // Boss 掉落更多道具
-                    for (let i = 0; i < 5; i++) {
-                        this.time.delayedCall(i * 200, () => {
+                    for (let i = 0; i < 10; i++) {
+                        this.time.delayedCall(i * 150, () => {
                             this.spawnDrop(
-                                enemy.x + Phaser.Math.Between(-50, 50),
-                                enemy.y + Phaser.Math.Between(-50, 50)
+                                enemy.x + Phaser.Math.Between(-100, 100),
+                                enemy.y + Phaser.Math.Between(-100, 100)
                             );
                         });
                     }
+                }
+                // Boss 击杀
+                if (enemy.isBoss) {
+                    gameState.bossActive = false;
+                    this.currentBoss = null;
+                    document.getElementById('boss-hp-container').style.display = 'none';
+                    this.showAchievement('👹 Boss 终结者');
+                    
+                    // Boss 死亡大爆炸
+                    this.createBossDeathExplosion(enemy.x, enemy.y);
+                    
+                    // 清理 Boss 特效
+                    if (enemy.glow) enemy.glow.destroy();
+                    if (enemy.particles) enemy.particles.clear(true, true);
+                    
+                    // 屏幕长时间震动
+                    this.cameras.main.shake(1000, 0.03);
+                    
+                    // Boss 掉落更多道具
+                    for (let i = 0; i < 10; i++) {
+                        this.time.delayedCall(i * 150, () => {
+                            this.spawnDrop(
+                                enemy.x + Phaser.Math.Between(-100, 100),
+                                enemy.y + Phaser.Math.Between(-100, 100)
+                            );
+                        });
+                    }
+                }
+                // Boss 击杀
+                if (enemy.isBoss) {
+                    gameState.bossActive = false;
+                    this.currentBoss = null;
+                    document.getElementById('boss-hp-container').style.display = 'none';
+                    this.showAchievement('👹 Boss 终结者');
+                    
+                    // Boss 死亡大爆炸
+                    this.createBossDeathExplosion(enemy.x, enemy.y);
+                    
+                    // 清理 Boss 特效
+                    if (enemy.glow) enemy.glow.destroy();
+                    if (enemy.particles) enemy.particles.clear(true, true);
+                    
+                    // 屏幕长时间震动
+                    this.cameras.main.shake(1000, 0.03);
+                    
+                    // Boss 掉落更多道具
+                    for (let i = 0; i < 10; i++) {
+                        this.time.delayedCall(i * 150, () => {
+                            this.spawnDrop(
+                                enemy.x + Phaser.Math.Between(-100, 100),
+                                enemy.y + Phaser.Math.Between(-100, 100)
+                            );
+                        });
+                    }
+                }
+                // Boss 击杀
+                if (enemy.isBoss) {
+                    gameState.bossActive = false;
+                    this.currentBoss = null;
+                    document.getElementById('boss-hp-container').style.display = 'none';
+                    this.showAchievement('👹 Boss 终结者');
+                    
+                    // Boss 死亡大爆炸
+                    this.createBossDeathExplosion(enemy.x, enemy.y);
+                    
+                    // 清理 Boss 特效
+                    if (enemy.glow) enemy.glow.destroy();
+                    if (enemy.particles) enemy.particles.clear(true, true);
+                    
+                    // 屏幕长时间震动
+                    this.cameras.main.shake(1000, 0.03);
+                    
+                    // Boss 掉落更多道具
+                    for (let i = 0; i < 10; i++) {
+                        this.time.delayedCall(i * 150, () => {
+                            this.spawnDrop(
+                                enemy.x + Phaser.Math.Between(-100, 100),
+                                enemy.y + Phaser.Math.Between(-100, 100)
+                            );
+                        });
+                    }
+                }
+                // Boss 击杀
+                if (enemy.isBoss) {
+                    gameState.bossActive = false;
+                    this.currentBoss = null;
+                    document.getElementById('boss-hp-container').style.display = 'none';
+                    this.showAchievement('👹 Boss 终结者');
+                    
+                    // Boss 死亡大爆炸
+                    this.createBossDeathExplosion(enemy.x, enemy.y);
+                    
+                    // 清理 Boss 特效
+                    if (enemy.glow) enemy.glow.destroy();
+                    if (enemy.particles) enemy.particles.clear(true, true);
+                    
+                    // 屏幕长时间震动
+                    this.cameras.main.shake(1000, 0.03);
+                    
+                    // Boss 掉落更多道具
+                    for (let i = 0; i < 10; i++) {
+                        this.time.delayedCall(i * 150, () => {
+                            this.spawnDrop(
+                                enemy.x + Phaser.Math.Between(-100, 100),
+                                enemy.y + Phaser.Math.Between(-100, 100)
+                            );
+                        });
+                    }
+                }
+                // Boss 击杀
+                if (enemy.isBoss) {
+                    gameState.bossActive = false;
+                    this.currentBoss = null;
+                    document.getElementById('boss-hp-container').style.display = 'none';
+                    this.showAchievement('👹 Boss 终结者');
+                    
+                    // Boss 死亡大爆炸
+                    this.createBossDeathExplosion(enemy.x, enemy.y);
+                    
+                    // 清理 Boss 特效
+                    if (enemy.glow) enemy.glow.destroy();
+                    if (enemy.particles) enemy.particles.clear(true, true);
+                    
+                    // 屏幕长时间震动
+                    this.cameras.main.shake(1000, 0.03);
+                    
+                    // Boss 掉落更多道具
+                    for (let i = 0; i < 10; i++) {
+                        this.time.delayedCall(i * 150, () => {
+                            this.spawnDrop(
+                                enemy.x + Phaser.Math.Between(-100, 100),
+                                enemy.y + Phaser.Math.Between(-100, 100)
+                            );
+                        });
+                    }
+                }
+                // Boss 击杀
+                if (enemy.isBoss) {
+                    gameState.bossActive = false;
+                    this.currentBoss = null;
+                    document.getElementById('boss-hp-container').style.display = 'none';
+                    this.showAchievement('👹 Boss 终结者');
+                    
+                    // Boss 死亡大爆炸
+                    this.createBossDeathExplosion(enemy.x, enemy.y);
+                    
+                    // 清理 Boss 特效
+                    if (enemy.glow) enemy.glow.destroy();
+                    if (enemy.particles) enemy.particles.clear(true, true);
+                    
+                    // 屏幕长时间震动
+                    this.cameras.main.shake(1000, 0.03);
+                    
+                    // Boss 掉落更多道具
+                    for (let i = 0; i < 10; i++) {
+                        this.time.delayedCall(i * 150, () => {
+                            this.spawnDrop(
+                                enemy.x + Phaser.Math.Between(-100, 100),
+                                enemy.y + Phaser.Math.Between(-100, 100)
+                            );
+                        });
+                    }
+                }
+                // Boss 击杀
+                if (enemy.isBoss) {
+                    gameState.bossActive = false;
+                    this.currentBoss = null;
+                    document.getElementById('boss-hp-container').style.display = 'none';
+                    this.showAchievement('👹 Boss 终结者');
+                    
+                    // Boss 死亡大爆炸
+                    this.createBossDeathExplosion(enemy.x, enemy.y);
+                    
+                    // 清理 Boss 特效
+                    if (enemy.glow) enemy.glow.destroy();
+                    if (enemy.particles) enemy.particles.clear(true, true);
+                    
+                    // 屏幕长时间震动
+                    this.cameras.main.shake(1000, 0.03);
+                    
+                    // Boss 掉落更多道具
+                    for (let i = 0; i < 10; i++) {
+                        this.time.delayedCall(i * 150, () => {
+                            this.spawnDrop(
+                                enemy.x + Phaser.Math.Between(-100, 100),
+                                enemy.y + Phaser.Math.Between(-100, 100)
+                            );
+                        });
+                    }
+                }
+                // Boss 击杀
+                if (enemy.isBoss) {
+                    gameState.bossActive = false;
+                    this.currentBoss = null;
+                    document.getElementById('boss-hp-container').style.display = 'none';
+                    this.showAchievement('👹 Boss 终结者');
+                    
+                    // Boss 死亡大爆炸
+                    this.createBossDeathExplosion(enemy.x, enemy.y);
+                    
+                    // 清理 Boss 特效
+                    if (enemy.glow) enemy.glow.destroy();
+                    if (enemy.particles) enemy.particles.clear(true, true);
+                    
+                    // 屏幕长时间震动
+                    this.cameras.main.shake(1000, 0.03);
+                    
+                    // Boss 掉落更多道具
+                    for (let i = 0; i < 10; i++) {
+                        this.time.delayedCall(i * 150, () => {
+                            this.spawnDrop(
+                                enemy.x + Phaser.Math.Between(-100, 100),
+                                enemy.y + Phaser.Math.Between(-100, 100)
+                            );
+                        });
+                    }
+                }
+                // Boss 击杀
+                if (enemy.isBoss) {
+                    gameState.bossActive = false;
+                    this.currentBoss = null;
+                    document.getElementById('boss-hp-container').style.display = 'none';
+                    this.showAchievement('👹 Boss 终结者');
+                    
+                    // Boss 死亡大爆炸
+                    this.createBossDeathExplosion(enemy.x, enemy.y);
+                    
+                    // 清理 Boss 特效
+                    if (enemy.glow) enemy.glow.destroy();
+                    if (enemy.particles) enemy.particles.clear(true, true);
+                    
+                    // 屏幕长时间震动
+                    this.cameras.main.shake(1000, 0.03);
+                    
+                    // Boss 掉落更多道具
+                    for (let i = 0; i < 10; i++) {
+                        this.time.delayedCall(i * 150, () => {
+                            this.spawnDrop(
+                                enemy.x + Phaser.Math.Between(-100, 100),
+                                enemy.y + Phaser.Math.Between(-100, 100)
+                            );
+                        });
+                    }
+                }
+                // Boss 击杀
+                if (enemy.isBoss) {
+                    gameState.bossActive = false;
+                    this.currentBoss = null;
+                    document.getElementById('boss-hp-container').style.display = 'none';
+                    this.showAchievement('👹 Boss 终结者');
+                    
+                    // Boss 死亡大爆炸
+                    this.createBossDeathExplosion(enemy.x, enemy.y);
+                    
+                    // 清理 Boss 特效
+                    if (enemy.glow) enemy.glow.destroy();
+                    if (enemy.particles) enemy.particles.clear(true, true);
+                    
+                    // 屏幕长时间震动
+                    this.cameras.main.shake(1000, 0.03);
+                    
+                    // Boss 掉落更多道具
+                    for (let i = 0; i < 10; i++) {
+                        this.time.delayedCall(i * 150, () => {
+                            this.spawnDrop(
+                                enemy.x + Phaser.Math.Between(-100, 100),
+                                enemy.y + Phaser.Math.Between(-100, 100)
+                            );
+                        });
+                    }
+                }
+                // Boss 击杀
+                if (enemy.isBoss) {
+                    gameState.bossActive = false;
+                    this.currentBoss = null;
+                    document.getElementById('boss-hp-container').style.display = 'none';
+                    this.showAchievement('👹 Boss 终结者');
+                    
+                    // Boss 死亡大爆炸
+                    this.createBossDeathExplosion(enemy.x, enemy.y);
+                    
+                    // 清理 Boss 特效
+                    if (enemy.glow) enemy.glow.destroy();
+                    if (enemy.particles) enemy.particles.clear(true, true);
+                    
+                    // 屏幕长时间震动
+                    this.cameras.main.shake(1000, 0.03);
+                    
+                    // Boss 掉落更多道具
+                    for (let i = 0; i < 10; i++) {
+                        this.time.delayedCall(i * 150, () => {
+                            this.spawnDrop(
+                                enemy.x + Phaser.Math.Between(-100, 100),
+                                enemy.y + Phaser.Math.Between(-100, 100)
+                            );
+                        });
+                    }
+                }
+                // Boss 击杀
+                if (enemy.isBoss) {
+                    gameState.bossActive = false;
+                    this.currentBoss = null;
+                    document.getElementById('boss-hp-container').style.display = 'none';
+                    this.showAchievement('👹 Boss 终结者');
+                    
+                    // Boss 死亡大爆炸
+                    this.createBossDeathExplosion(enemy.x, enemy.y);
+                    
+                    // 清理 Boss 特效
+                    if (enemy.glow) enemy.glow.destroy();
+                    if (enemy.particles) enemy.particles.clear(true, true);
+                    
+                    // 屏幕长时间震动
+                    this.cameras.main.shake(1000, 0.03);
+                    
+                    // Boss 掉落更多道具
+                    for (let i = 0; i < 10; i++) {
+                        this.time.delayedCall(i * 150, () => {
+                            this.spawnDrop(
+                                enemy.x + Phaser.Math.Between(-100, 100),
+                                enemy.y + Phaser.Math.Between(-100, 100)
+                            );
+                        });
+                    }
+                }
+                // Boss 击杀
+                if (enemy.isBoss) {
+                    gameState.bossActive = false;
+                    this.currentBoss = null;
+                    document.getElementById('boss-hp-container').style.display = 'none';
+                    this.showAchievement('👹 Boss 终结者');
+                    
+                    // Boss 死亡大爆炸
+                    this.createBossDeathExplosion(enemy.x, enemy.y);
+                    
+                    // 清理 Boss 特效
+                    if (enemy.glow) enemy.glow.destroy();
+                    if (enemy.particles) enemy.particles.clear(true, true);
+                    
+                    // 屏幕长时间震动
+                    this.cameras.main.shake(1000, 0.03);
+                    
+                    // Boss 掉落更多道具
+                    for (let i = 0; i < 10; i++) {
+                        this.time.delayedCall(i * 150, () => {
+                            this.spawnDrop(
+                                enemy.x + Phaser.Math.Between(-100, 100),
+                                enemy.y + Phaser.Math.Between(-100, 100)
+                            );
+                        });
+                    }
+                }
+                // Boss 击杀
+                if (enemy.isBoss) {
+                    gameState.bossActive = false;
+                    this.currentBoss = null;
+                    document.getElementById('boss-hp-container').style.display = 'none';
+                    this.showAchievement('👹 Boss 终结者');
+                    
+                    // Boss 死亡大爆炸
+                    this.createBossDeathExplosion(enemy.x, enemy.y);
+                    
+                    // 清理 Boss 特效
+                    if (enemy.glow) enemy.glow.destroy();
+                    if (enemy.particles) enemy.particles.clear(true, true);
+                    
+                    // 屏幕长时间震动
+                    this.cameras.main.shake(1000, 0.03);
+                    
+                    // Boss 掉落更多道具
+                    for (let i = 0; i < 10; i++) {
+                        this.time.delayedCall(i * 150, () => {
+                            this.spawnDrop(
+                                enemy.x + Phaser.Math.Between(-100, 100),
+                                enemy.y + Phaser.Math.Between(-100, 100)
+                            );
+                        });
+                    }
+                }
+                // Boss 击杀
+                if (enemy.isBoss) {
+                    gameState.bossActive = false;
+                    this.currentBoss = null;
+                    document.getElementById('boss-hp-container').style.display = 'none';
+                    this.showAchievement('👹 Boss 终结者');
+                    
+                    // Boss 死亡大爆炸
+                    this.createBossDeathExplosion(enemy.x, enemy.y);
+                    
+                    // 清理 Boss 特效
+                    if (enemy.glow) enemy.glow.destroy();
+                    if (enemy.particles) enemy.particles.clear(true, true);
+                    
+                    // 屏幕长时间震动
+                    this.cameras.main.shake(1000, 0.03);
+                    
+                    // Boss 掉落更多道具
+                    for (let i = 0; i < 10; i++) {
+                        this.time.delayedCall(i * 150, () => {
+                            this.spawnDrop(
+                                enemy.x + Phaser.Math.Between(-100, 100),
+                                enemy.y + Phaser.Math.Between(-100, 100)
+                            );
+                        });
+                    }
+                }
                 }
                 
                 // 道具掉落
@@ -1854,6 +2343,71 @@
                     ease: 'Power2',
                     onComplete: () => shockwave.destroy()
                 });
+            }
+            
+            createBossDeathExplosion(x, y) {
+                // Boss 死亡 - 多层爆炸效果
+                // 第一层：核心爆炸
+                const core = this.add.circle(x, y, 100, 0xffffff, 0.9);
+                core.setBlendMode(Phaser.BlendModes.ADD);
+                this.tweens.add({
+                    targets: core,
+                    scale: 5,
+                    alpha: 0,
+                    duration: 1000,
+                    onComplete: () => core.destroy()
+                });
+                
+                // 第二层：红色冲击波
+                for (let i = 0; i < 8; i++) {
+                    const wave = this.add.circle(x, y, 50, 0xff0000, 0.6);
+                    wave.setBlendMode(Phaser.BlendModes.ADD);
+                    const angle = (i / 8) * Math.PI * 2;
+                    const distance = 300;
+                    
+                    this.tweens.add({
+                        targets: wave,
+                        x: x + Math.cos(angle) * distance,
+                        y: y + Math.sin(angle) * distance,
+                        scale: 3,
+                        alpha: 0,
+                        duration: 1200,
+                        onComplete: () => wave.destroy()
+                    });
+                }
+                
+                // 第三层：碎片
+                for (let i = 0; i < 30; i++) {
+                    const fragment = this.add.circle(x, y, Phaser.Math.Between(5, 12), 0xff4400);
+                    fragment.setBlendMode(Phaser.BlendModes.ADD);
+                    const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+                    const distance = Phaser.Math.Between(150, 400);
+                    
+                    this.tweens.add({
+                        targets: fragment,
+                        x: x + Math.cos(angle) * distance,
+                        y: y + Math.sin(angle) * distance,
+                        alpha: 0,
+                        scale: 0.1,
+                        rotation: Phaser.Math.Between(0, 360),
+                        duration: Phaser.Math.Between(800, 1500),
+                        onComplete: () => fragment.destroy()
+                    });
+                }
+                
+                // 第四层：持续光柱
+                const pillar = this.add.circle(x, y, 150, 0xffaa00, 0.4);
+                pillar.setBlendMode(Phaser.BlendModes.ADD);
+                this.tweens.add({
+                    targets: pillar,
+                    scaleY: 3,
+                    alpha: 0,
+                    duration: 2000,
+                    onComplete: () => pillar.destroy()
+                });
+                
+                // 屏幕闪白
+                this.cameras.main.flash(800, 255, 255, 255, false);
             }
 
             hitPlayer(player, enemy) {
