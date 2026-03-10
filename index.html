@@ -5,6 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>星际射击 - 完整版 🚀</title>
     <style>
+        /* 音频控制 UI */
+        #audio-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            gap: 8px;
+            z-index: 100;
+            pointer-events: auto;
+        }
+        .audio-btn {
+            width: 40px;
+            height: 40px;
+            background: rgba(0,0,0,0.7);
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 8px;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .audio-btn:hover {
+            background: rgba(74, 222, 128, 0.5);
+            border-color: #4ade80;
+        }
+        .audio-btn.muted {
+            opacity: 0.5;
+            border-color: #ef4444;
+        }
+    </style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
@@ -422,6 +455,12 @@
             <div>🌊 波数 <span id="wave-display">1</span></div>
             <div>🎯 得分 <span id="score-display">0</span></div>
             <div>⚔️ 伤害 <span id="dmg-display">10</span></div>
+        </div>
+        
+        <!-- 音频控制 -->
+        <div id="audio-controls">
+            <button class="audio-btn" id="btn-sfx" title="音效开关">🔊</button>
+            <button class="audio-btn" id="btn-bgm" title="背景音乐开关">🎵</button>
         </div>
         
         <!-- 武器槽 -->
@@ -848,6 +887,9 @@
                     this.player.x, this.player.y,
                     this.pointer.x, this.pointer.y
                 );
+                
+                // 播放射击音效
+                AudioManager.playShoot();
 
                 for (let i = 0; i < weapon.bulletCount; i++) {
                     const spread = (i - (weapon.bulletCount - 1) / 2) * weapon.bulletSpread;
@@ -1096,6 +1138,9 @@
             }
 
             killEnemy(enemy) {
+                // 播放爆炸音效
+                AudioManager.playExplosion();
+                
                 // 金币掉落
                 const gold = Math.floor(enemy.gold * (1 + playerState.goldBonus));
                 playerState.gold += gold;
@@ -1356,6 +1401,9 @@
                 playerState.comboTimer = 0;
                 gameState.maxCombo = Math.max(gameState.maxCombo, playerState.combo);
                 
+                // 播放连击音效
+                AudioManager.playCombo(playerState.combo);
+                
                 // 连击奖励
                 if (playerState.combo % 10 === 0) {
                     const bonus = playerState.combo;
@@ -1378,6 +1426,9 @@
                     playerState.maxHp += 10;
                     playerState.hp = playerState.maxHp;
                     playerState.gold += 50;
+                    
+                    // 播放升级音效
+                    AudioManager.playPowerup();
                     
                     this.showFloatText(`🎉 升级! Lv.${playerState.level}`, CONFIG.width/2, CONFIG.height/2, 36);
                     this.cameras.main.flash(200, 74, 222, 128);
@@ -1731,6 +1782,178 @@
             }
         }
 
+        // ==================== 音频管理器 ====================
+        const AudioManager = {
+            audioCtx: null,
+            sfxEnabled: true,
+            bgmEnabled: true,
+            bgmAudio: null,
+            
+            init() {
+                // 初始化 Web Audio API
+                window.AudioContext = window.AudioContext || window.webkitAudioContext;
+                this.audioCtx = new AudioContext();
+                
+                // 绑定控制按钮
+                document.getElementById('btn-sfx').addEventListener('click', () => this.toggleSFX());
+                document.getElementById('btn-bgm').addEventListener('click', () => this.toggleBGM());
+                
+                // 加载 BGM
+                this.loadBGM();
+            },
+            
+            // 射击音效
+            playShoot() {
+                if (!this.sfxEnabled || !this.audioCtx) return;
+                
+                const osc = this.audioCtx.createOscillator();
+                const gain = this.audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(this.audioCtx.destination);
+                
+                osc.frequency.setValueAtTime(800, this.audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, this.audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.3, this.audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.audioCtx.currentTime + 0.1);
+                
+                osc.start();
+                osc.stop(this.audioCtx.currentTime + 0.1);
+            },
+            
+            // 爆炸音效
+            playExplosion() {
+                if (!this.sfxEnabled || !this.audioCtx) return;
+                
+                const bufferSize = this.audioCtx.sampleRate * 0.5;
+                const buffer = this.audioCtx.createBuffer(1, bufferSize, this.audioCtx.sampleRate);
+                const data = buffer.getChannelData(0);
+                
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+                
+                const noise = this.audioCtx.createBufferSource();
+                noise.buffer = buffer;
+                
+                const gain = this.audioCtx.createGain();
+                gain.gain.setValueAtTime(0.5, this.audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.audioCtx.currentTime + 0.5);
+                
+                noise.connect(gain);
+                gain.connect(this.audioCtx.destination);
+                noise.start();
+            },
+            
+            // 升级音效
+            playPowerup() {
+                if (!this.sfxEnabled || !this.audioCtx) return;
+                
+                const osc = this.audioCtx.createOscillator();
+                const gain = this.audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(this.audioCtx.destination);
+                
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, this.audioCtx.currentTime);
+                osc.frequency.linearRampToValueAtTime(1200, this.audioCtx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.3, this.audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.audioCtx.currentTime + 0.3);
+                
+                osc.start();
+                osc.stop(this.audioCtx.currentTime + 0.3);
+            },
+            
+            // 命中音效
+            playHit() {
+                if (!this.sfxEnabled || !this.audioCtx) return;
+                
+                const osc = this.audioCtx.createOscillator();
+                const gain = this.audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(this.audioCtx.destination);
+                
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(300, this.audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, this.audioCtx.currentTime + 0.05);
+                gain.gain.setValueAtTime(0.2, this.audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.audioCtx.currentTime + 0.05);
+                
+                osc.start();
+                osc.stop(this.audioCtx.currentTime + 0.05);
+            },
+            
+            // 连击音效
+            playCombo(count) {
+                if (!this.sfxEnabled || !this.audioCtx) return;
+                if (count % 10 !== 0) return;
+                
+                const osc = this.audioCtx.createOscillator();
+                const gain = this.audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(this.audioCtx.destination);
+                
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(500 + (count / 10) * 100, this.audioCtx.currentTime);
+                osc.frequency.linearRampToValueAtTime(1500, this.audioCtx.currentTime + 0.2);
+                gain.gain.setValueAtTime(0.3, this.audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.audioCtx.currentTime + 0.2);
+                
+                osc.start();
+                osc.stop(this.audioCtx.currentTime + 0.2);
+            },
+            
+            // 加载 BGM
+            loadBGM() {
+                // 使用 GitHub Pages 上的音乐
+                this.bgmAudio = new Audio('https://moyoti.github.io/shooter-game/bgm/Track_01.mp3');
+                this.bgmAudio.loop = true;
+                this.bgmAudio.volume = 0.3;
+                this.bgmAudio.addEventListener('canplay', () => {
+                    console.log('BGM 已加载');
+                });
+                this.bgmAudio.addEventListener('error', (e) => {
+                    console.log('BGM 加载失败，使用备用音源');
+                });
+            },
+            
+            // 播放 BGM
+            playBGM() {
+                if (!this.bgmEnabled || !this.bgmAudio) return;
+                this.audioCtx.resume().then(() => {
+                    this.bgmAudio.play().catch(e => console.log('BGM 播放需要用户交互'));
+                });
+            },
+            
+            // 暂停 BGM
+            pauseBGM() {
+                if (this.bgmAudio) {
+                    this.bgmAudio.pause();
+                }
+            },
+            
+            // 切换音效
+            toggleSFX() {
+                this.sfxEnabled = !this.sfxEnabled;
+                const btn = document.getElementById('btn-sfx');
+                btn.textContent = this.sfxEnabled ? '🔊' : '🔇';
+                btn.classList.toggle('muted', !this.sfxEnabled);
+            },
+            
+            // 切换 BGM
+            toggleBGM() {
+                this.bgmEnabled = !this.bgmEnabled;
+                const btn = document.getElementById('btn-bgm');
+                btn.textContent = this.bgmEnabled ? '🎵' : '🔇';
+                btn.classList.toggle('muted', !this.bgmEnabled);
+                
+                if (this.bgmEnabled) {
+                    this.playBGM();
+                } else {
+                    this.pauseBGM();
+                }
+            }
+        };
+
         // ==================== 游戏初始化 ====================
         let game;
         let scene;
@@ -1764,6 +1987,10 @@
         function startGame() {
             document.getElementById('start-screen').style.display = 'none';
             gameState.isStarted = true;
+            
+            // 初始化音频并开始 BGM
+            AudioManager.init();
+            AudioManager.playBGM();
             
             // 重置状态
             gameState.score = 0;
